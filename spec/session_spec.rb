@@ -16,6 +16,21 @@ describe "CommandRat::Session" do
       end
     end
 
+    it "should find the command in the PATH" do
+      command = make_shell_command('echo "found"')
+      dirname, basename = File.split(command)
+      rat = CommandRat::Session.new
+      rat.stubs(:env).returns(ENV.to_hash.merge('PATH' => "/junk:#{dirname}:/more/junk"))
+      rat.run(basename)
+      rat.stdout.should == "found\n"
+    end
+
+    it "should raise CommandNotFound if the command is not in the PATH" do
+      command = make_shell_command('echo "found"')
+      dirname, basename = File.split(command)
+      lambda{CommandRat::Session.run(basename)}.should raise_error(CommandRat::CommandNotFound)
+    end
+
     it "should take a block which can simulate user sessions with #consume and #input" do
       command = make_shell_command(<<-EOS)
         |echo Enter something:

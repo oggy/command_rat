@@ -1,4 +1,5 @@
 module CommandRat
-  class Timeout < StandardError; end
-  class RunError < StandardError; end
+  class Timeout < RuntimeError; end
+  class RunError < RuntimeError; end
+  class CommandNotFound < RuntimeError; end
 end

@@ -12,7 +12,8 @@ $hoe = Hoe.new('command_rat', CommandRat::VERSION) do |p|
   ]
   p.extra_dev_deps = [
     ['newgem', ">= #{::Newgem::VERSION}"],
-    ['rspec', ">= 1.2.6"]
+    ['rspec', ">= 1.2.6"],
+    ['mocha', ">= 0.9.5"],
   ]
 
   p.clean_globs |= %w[**/.DS_Store tmp *.log]

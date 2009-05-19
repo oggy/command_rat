@@ -32,7 +32,7 @@ module SpecHelper
     while File.exist?(name)
       name = make_name.call(i += 1)
     end
-    name
+    File.expand_path(name)
   end
 
   #
@@ -59,4 +59,7 @@ module SpecHelper
   end
 end
 
-Spec::Runner.configuration.include SpecHelper
+Spec::Runner.configure do |config|
+  config.include SpecHelper
+  config.mock_with :mocha
+end

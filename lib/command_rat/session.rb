@@ -12,6 +12,7 @@ module CommandRat
   class Session
     def initialize
       self.timeout = 5
+      @env = ENV.to_hash
     end
 
     #
@@ -28,7 +29,7 @@ module CommandRat
     #
     def run(*command)
       @command = command.dup
-      command[0] = File.expand_path(command[0])
+      command[0] = expand_path(command[0])
       @status = Open4.popen4(*command) do |pid, @stdin, @stdout, @stderr|
         @status = nil
         @buffers = {@stdout => '', @stderr => ''}
@@ -47,14 +48,20 @@ module CommandRat
     end
 
     #
+    # Timeout (in seconds) when waiting for output.  Default is 5.
+    #
+    attr_accessor :timeout
+
+    #
+    # Environment variables available to the command.  Default is the
+    # environment of the parent process when the Session is created.
+    #
+    attr_reader :env
+
+    #
     # The Process::Status of the last command run.
     #
     attr_reader :command
-
-    #
-    # Timeout (in seconds) when waiting for output.
-    #
-    attr_accessor :timeout
 
     #
     # Wait until the given pattern (String or Regexp) occurs on the
@@ -149,6 +156,17 @@ module CommandRat
     end
 
     private  # -------------------------------------------------------
+
+    def expand_path(command)
+      return command if command[0] == ?/
+      env['PATH'].split(/:/).each do |dir|
+        absolute_path = File.expand_path(command, dir)
+        if File.exist?(absolute_path)
+          return absolute_path
+        end
+      end
+      raise CommandNotFound, "command not found: #{command}"
+    end
 
     def stream_named(symbol)
       stream =
