@@ -1,6 +1,12 @@
-$:.unshift(File.dirname(__FILE__)) unless
-  $:.include?(File.dirname(__FILE__)) || $:.include?(File.expand_path(File.dirname(__FILE__)))
-
+#
+# Performs acceptance testing on a command-line application.
+#
+# See CommandRat::Session for the main session object.
+#
 module CommandRat
-  VERSION = '0.0.1'
 end
+
+require 'open4'
+require 'command_rat/version'
+require 'command_rat/errors'
+require 'command_rat/session'
