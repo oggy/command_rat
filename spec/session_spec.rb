@@ -31,7 +31,7 @@ describe "CommandRat::Session" do
       lambda{CommandRat::Session.run(basename)}.should raise_error(CommandRat::CommandNotFound)
     end
 
-    it "should take a block which can simulate user sessions with #consume and #input" do
+    it "should take a block which can simulate user sessions with #consume_to and #input" do
       command = make_shell_command(<<-EOS)
         |echo Enter something:
         |read response
@@ -40,9 +40,9 @@ describe "CommandRat::Session" do
       block_run = false
       CommandRat::Session.run(command) do |rat|
         block_run = true
-        rat.consume("Enter something:\n").should == "Enter something:\n"
+        rat.consume_to("Enter something:\n").should == "Enter something:\n"
         rat.input "hi\n"
-        rat.consume("hi!\n").should == "hi!\n"
+        rat.consume_to("hi!\n").should == "hi!\n"
       end
       block_run.should be_true
     end
@@ -60,14 +60,14 @@ describe "CommandRat::Session" do
     end
   end
 
-  describe "#consume" do
+  describe "#consume_to" do
     it "should wait on the stream given by the :stream option" do
       command = make_shell_command(<<-EOS)
         |echo hi >&2
       EOS
 
       CommandRat::Session.run(command) do |rat|
-        rat.consume("hi\n", :on => :stderr).should == "hi\n"
+        rat.consume_to("hi\n", :on => :stderr).should == "hi\n"
       end
     end
 
@@ -76,7 +76,7 @@ describe "CommandRat::Session" do
         |echo hi
       EOS
       rat = CommandRat::Session.run(command) do |rat|
-        lambda{rat.consume("hi\n", :on => :blarg)}.should raise_error(ArgumentError)
+        lambda{rat.consume_to("hi\n", :on => :blarg)}.should raise_error(ArgumentError)
       end
     end
 
@@ -87,7 +87,7 @@ describe "CommandRat::Session" do
           |echo two
         EOS
         rat = CommandRat::Session.run(command) do |rat|
-          rat.consume("one\n").should == "one\n"
+          rat.consume_to("one\n").should == "one\n"
         end
         rat.stdout.should == "two\n"
       end
@@ -98,7 +98,7 @@ describe "CommandRat::Session" do
         EOS
 
         CommandRat::Session.run(command) do |rat|
-          rat.consume("hi").should == "hi"
+          rat.consume_to("hi").should == "hi"
         end
       end
 
@@ -108,7 +108,7 @@ describe "CommandRat::Session" do
         EOS
 
         CommandRat::Session.run(command) do |rat|
-          rat.consume("bye").should be_nil
+          rat.consume_to("bye").should be_nil
         end
       end
 
@@ -122,12 +122,12 @@ describe "CommandRat::Session" do
 
         # sanity check
         rat.run(command) do
-          rat.consume("hi").should == "hi"
+          rat.consume_to("hi").should == "hi"
         end
 
         rat.timeout = 0.1
         rat.run(command) do
-          lambda{rat.consume("hi")}.should raise_error(CommandRat::Timeout)
+          lambda{rat.consume_to("hi")}.should raise_error(CommandRat::Timeout)
         end
       end
     end
@@ -138,7 +138,7 @@ describe "CommandRat::Session" do
           |echo a.
         EOS
         rat = CommandRat::Session.run(command) do |rat|
-          rat.consume(/./)[0].should == 'a'
+          rat.consume_to(/./)[0].should == 'a'
         end
         rat.stdout.should == ".\n"
       end
@@ -149,7 +149,7 @@ describe "CommandRat::Session" do
         EOS
 
         CommandRat::Session.run(command) do |rat|
-          match = rat.consume(/hi/)
+          match = rat.consume_to(/hi/)
           match.should be_a(MatchData)
           match.to_a.should == ['hi']
         end
@@ -161,7 +161,7 @@ describe "CommandRat::Session" do
         EOS
 
         CommandRat::Session.run(command) do |rat|
-          rat.consume(/bye/).should be_nil
+          rat.consume_to(/bye/).should be_nil
         end
       end
 
@@ -175,12 +175,12 @@ describe "CommandRat::Session" do
 
         # sanity check
         rat.run(command) do
-          rat.consume(/hi/)[0].should == "hi"
+          rat.consume_to(/hi/)[0].should == "hi"
         end
 
         rat.timeout = 0.1
         rat.run(command) do
-          lambda{rat.consume(/hi/)}.should raise_error(CommandRat::Timeout)
+          lambda{rat.consume_to(/hi/)}.should raise_error(CommandRat::Timeout)
         end
       end
     end
@@ -204,7 +204,7 @@ describe "CommandRat::Session" do
         |echo err >&2
       EOS
       rat = CommandRat::Session.run(command) do |rat|
-        rat.consume("out1\n")
+        rat.consume_to("out1\n")
       end
       rat.stdout.should == "out2\n"
     end
@@ -237,7 +237,7 @@ describe "CommandRat::Session" do
         |echo err2 >&2
       EOS
       rat = CommandRat::Session.run(command) do |rat|
-        rat.consume("err1\n", :on => :stderr)
+        rat.consume_to("err1\n", :on => :stderr)
       end
       rat.stderr.should == "err2\n"
     end

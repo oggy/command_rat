@@ -76,7 +76,7 @@ module CommandRat
     # :on - Stream to read from (:stdout or :stderr). Default is
     #       :stdout.
     #
-    def consume(pattern, options={})
+    def consume_to(pattern, options={})
       stream = stream_named(options[:on])
       buffer = buffer_for(stream)
       read_until(timeout) do
@@ -87,14 +87,14 @@ module CommandRat
     end
 
     #
-    # Like #consume, but consume only the next line, and only match
+    # Like #consume_to, but consume only the next line, and only match
     # +pattern+ in this line.
     #
     # Return the matched string, or raise Timeout if the timeout is
     # exceeded.
     #
     def expect(pattern, options={})
-      result = consume(/.*?(\n|\r\n?)/, options) or
+      result = consume_to(/.*?(\n|\r\n?)/, options) or
         return result
       line = result[0]
       if pattern.is_a?(Regexp)
@@ -123,11 +123,11 @@ module CommandRat
     # Return the standard output of the program, minus anything that
     # has been consumed.
     #
-    # Raise a RunError if in a run block.  Use #consume to check the
-    # output for a program while it's still running instead.
+    # Raise a RunError if in a run block.  Use #consume_to to check
+    # the output for a program while it's still running instead.
     #
     def stdout
-      raise_if_in_run_block "don't use #stdout in a #run block - try #consume instead"
+      raise_if_in_run_block "don't use #stdout in a #run block - try #consume_to instead"
       read_until(0)
       buffer_for(@stdout)
     end
@@ -136,11 +136,11 @@ module CommandRat
     # Return the standard error of the program, minus anything that
     # has been consumed.
     #
-    # Raise a RunError if in a run block.  Use #consume to check the
-    # output for a program while it's still running instead.
+    # Raise a RunError if in a run block.  Use #consume_to to check
+    # the output for a program while it's still running instead.
     #
     def stderr
-      raise_if_in_run_block "don't use #stdout in a #run block - try #consume(pattern, :on => :stderr) instead"
+      raise_if_in_run_block "don't use #stdout in a #run block - try #consume_to(pattern, :on => :stderr) instead"
       read_until(0)
       buffer_for(@stderr)
     end

@@ -81,7 +81,7 @@ module CommandRat
 
         def matches?(session)
           @session = session
-          !!session.consume(@pattern, :on => @stream)
+          !!session.consume_to(@pattern, :on => @stream)
         end
 
         def failure_message_for_should
