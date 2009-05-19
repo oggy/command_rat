@@ -27,6 +27,7 @@ module CommandRat
     # This resets the output streams.
     #
     def run(*command)
+      @command = command.dup
       command[0] = File.expand_path(command[0])
       @status = Open4.popen4(*command) do |pid, @stdin, @stdout, @stderr|
         @status = nil
@@ -48,7 +49,7 @@ module CommandRat
     #
     # The Process::Status of the last command run.
     #
-    attr_reader :status
+    attr_reader :command
 
     #
     # Timeout (in seconds) when waiting for output.
@@ -144,7 +145,7 @@ module CommandRat
     #
     def exit_status
       raise_if_in_run_block "don't use #exit_status in a #run block - wait until the block is complete"
-      status && status.exitstatus
+      @status && @status.exitstatus
     end
 
     private  # -------------------------------------------------------

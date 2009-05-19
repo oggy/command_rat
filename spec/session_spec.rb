@@ -2,72 +2,11 @@ require 'spec_helper'
 require 'fileutils'
 
 describe "CommandRat::Session" do
-  before do
-    @files_to_cleanup = []
-  end
-
-  after do
-    @files_to_cleanup.each do |name|
-      FileUtils.rm_f name
-    end
-  end
-
-  def temp_dir
-    File.dirname(__FILE__) + '/../tmp'
-  end
-
-  #
-  # Return a temp file name that does not yet exist.
-  #
-  def generate_file_name
-    make_name = lambda{|i| "#{temp_dir}/#{i}"}
-    i = 0
-    name = make_name.call(0)
-    while File.exist?(name)
-      name = make_name.call(i += 1)
-    end
-    name
-  end
-
-  #
-  # Create a temporary executable with the given source, and return
-  # the path.  Any '|'-delimited margin will be stripped first.
-  #
-  # The generated file will be cleaned up in the after hook.
-  #
-  def make_executable(source)
-    name = generate_file_name
-    source = source.gsub(/^ *\|/, '')
-    open(name, 'w'){|f| f.print(source)}
-    @files_to_cleanup << name
-    FileUtils.chmod(0755, name)
-    name
-  end
-
-  #
-  # Prefix the given source string with "#!/bin/sh" and make a
-  # temporary executable out of it.
-  #
-  def make_shell_command(source)
-    make_executable("#!/bin/sh\n" + source)
-  end
-
-  #
-  # Make a temporary executable that takes an input string and outputs
-  # it with a '!' appended.
-  #
-  def make_exclaim_command
-    make_shell_command(<<-EOS)
-      |read string
-      |echo $string!
-    EOS
-  end
-
   describe "#run" do
     it "should run the given command" do
       generate_file_name do |output_name|
         File.should_not exist?(output_name)  # sanity check
-        @files_to_cleanup << output_name
+        clean_up output_name
         command = make_shell_command(<<-EOS)
           |touch #{output_name}
           |echo error >&2
@@ -84,13 +23,25 @@ describe "CommandRat::Session" do
         |echo $response!
       EOS
       block_run = false
-      rat = CommandRat::Session.run(command) do |rat|
+      CommandRat::Session.run(command) do |rat|
         block_run = true
         rat.consume("Enter something:\n").should == "Enter something:\n"
         rat.input "hi\n"
         rat.consume("hi!\n").should == "hi!\n"
       end
       block_run.should be_true
+    end
+  end
+
+  describe "#command" do
+    it "should return the last command run" do
+      command = make_shell_command(<<-EOS)
+        |echo Enter something:
+        |read response
+        |echo $response!
+      EOS
+      rat = CommandRat::Session.run(command, 'a', 'b')
+      rat.command.should == [command, 'a', 'b']
     end
   end
 
@@ -222,7 +173,10 @@ describe "CommandRat::Session" do
 
   describe "#stdout" do
     it "raises a RunError if inside a #run block" do
-      command = make_exclaim_command
+      command = make_shell_command(<<-EOS)
+        |read string
+        |echo $string!
+      EOS
       rat = CommandRat::Session.run(command) do |rat|
         lambda{rat.stdout}.should raise_error(CommandRat::RunError)
       end
@@ -252,7 +206,10 @@ describe "CommandRat::Session" do
 
   describe "#stderr" do
     it "raises a RunError if inside a #run block" do
-      command = make_exclaim_command
+      command = make_shell_command(<<-EOS)
+        |read string
+        |echo $string!
+      EOS
       rat = CommandRat::Session.run(command) do |rat|
         lambda{rat.stdout}.should raise_error(CommandRat::RunError)
       end
@@ -282,7 +239,10 @@ describe "CommandRat::Session" do
 
   describe "#exit_status" do
     it "raises a RunError if inside a #run block" do
-      command = make_exclaim_command
+      command = make_shell_command(<<-EOS)
+        |read string
+        |echo $string!
+      EOS
       rat = CommandRat::Session.run(command) do |rat|
         lambda{rat.exit_status}.should raise_error(CommandRat::RunError)
       end
