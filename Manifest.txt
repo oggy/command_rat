@@ -5,11 +5,13 @@ Rakefile
 lib/command_rat.rb
 lib/command_rat/errors.rb
 lib/command_rat/rspec.rb
+lib/command_rat/rspec/matchers.rb
 lib/command_rat/session.rb
 lib/command_rat/version.rb
 script/console
 script/destroy
 script/generate
+spec/rspec_matchers_spec.rb
 spec/session_spec.rb
 spec/spec.opts
 spec/spec_helper.rb
