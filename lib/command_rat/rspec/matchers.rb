@@ -85,11 +85,11 @@ module CommandRat
         end
 
         def failure_message_for_should
-          "#{@stream} did not contain #{@pattern.inspect}"
+          "next line of #{@stream} did not contain #{@pattern.inspect}"
         end
 
         def failure_message_for_should_not
-          "#{@stream} contained #{@pattern.inspect}, but should not have"
+          "next line of #{@stream} contained #{@pattern.inspect}, but should not have"
         end
       end
 

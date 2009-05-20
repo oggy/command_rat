@@ -25,26 +25,37 @@ module CommandRat
     #
     # Run the given command.
     #
-    # This resets the output streams.
-    #
     def run(*command)
-      @command = command.dup
-      command[0] = expand_path(command[0])
-      @status = Open4.popen4(*command) do |pid, @stdin, @stdout, @stderr|
+      wait_until_done if running?
+      setup_environment
+      begin
+        @command = command.dup
         @status = nil
-        @buffers = {@stdout => '', @stderr => ''}
-        if block_given?
-          @in_run_block = true
-          begin
-            yield self
-          ensure
-            @in_run_block = false
-          end
-        end
-        @stdin.close
-        read_until{@stdout.closed? && @stderr.closed?}
+        @pid, @stdin, @stdout, @stderr = Open4.popen4(*command)
+        @buffers = {@stdout => Buffer.new, @stderr => Buffer.new}
+        @running = true
+        self
+      ensure
+        teardown_environment
       end
-      self
+    end
+
+    #
+    # True if the process is running, false otherwise.
+    #
+    def running?
+      !!@pid
+    end
+
+    #
+    # Reap the running process, if any.
+    #
+    def wait_until_done
+      return if !running?
+      @stdin.close
+      read_until{@stdout.closed? && @stderr.closed?}
+      pid, @status = Process::waitpid2(@pid)
+      @pid = nil
     end
 
     #
@@ -56,10 +67,14 @@ module CommandRat
     # Environment variables available to the command.  Default is the
     # environment of the parent process when the Session is created.
     #
-    attr_reader :env
+    attr_accessor :env
 
     #
-    # The Process::Status of the last command run.
+    # The list of shell words of the last command run.
+    #
+    #     session = CommandRat::Session.new
+    #     session.run 'echo', 'one', 'two'
+    #     session.command  # ['echo', 'one', 'two']
     #
     attr_reader :command
 
@@ -80,27 +95,8 @@ module CommandRat
       stream = stream_named(options[:on])
       buffer = buffer_for(stream)
       read_until(timeout) do
-        pattern = pattern.to_s unless pattern.is_a?(Regexp)
-        slice = buffer.slice!(pattern) and
-          return pattern.is_a?(Regexp) ? Regexp.last_match : slice
-      end
-    end
-
-    #
-    # Like #consume_to, but consume only the next line, and only match
-    # +pattern+ in this line.
-    #
-    # Return the matched string, or raise Timeout if the timeout is
-    # exceeded.
-    #
-    def expect(pattern, options={})
-      result = consume_to(/.*?(\n|\r\n?)/, options) or
-        return result
-      line = result[0]
-      if pattern.is_a?(Regexp)
-        line.match(pattern)
-      else
-        line[pattern]
+        match = buffer.advance_to(pattern) and
+          return match
       end
     end
 
@@ -112,6 +108,36 @@ module CommandRat
     end
 
     #
+    # Return all data that has been written to standard output by the
+    # command.
+    #
+    def stdout
+      wait_until_done
+      return nil if @buffers.nil?
+      buffer_for(@stdout).string
+    end
+
+    #
+    # Return all data that has been written to standard error by the
+    # command.
+    #
+    def stderr
+      wait_until_done
+      return nil if @buffers.nil?
+      buffer_for(@stderr).string
+    end
+
+    #
+    # Return the exit status of the last command that exited.
+    #
+    # If a command is still running, return nil.
+    #
+    def exit_status
+      wait_until_done
+      @status && @status.exitstatus
+    end
+
+    #
     # Send the given string on standard input, appending a record
     # separator if necessary (like Kernel#puts).
     #
@@ -120,52 +146,29 @@ module CommandRat
     end
 
     #
-    # Return the standard output of the program, minus anything that
-    # has been consumed.
+    # Like #consume_to, but consume only the next line, and only match
+    # +pattern+ in this line.
     #
-    # Raise a RunError if in a run block.  Use #consume_to to check
-    # the output for a program while it's still running instead.
+    # Return the matched string, or raise Timeout if the timeout is
+    # exceeded.
     #
-    def stdout
-      raise_if_in_run_block "don't use #stdout in a #run block - try #consume_to instead"
-      read_until(0)
-      buffer_for(@stdout)
-    end
-
-    #
-    # Return the standard error of the program, minus anything that
-    # has been consumed.
-    #
-    # Raise a RunError if in a run block.  Use #consume_to to check
-    # the output for a program while it's still running instead.
-    #
-    def stderr
-      raise_if_in_run_block "don't use #stdout in a #run block - try #consume_to(pattern, :on => :stderr) instead"
-      read_until(0)
-      buffer_for(@stderr)
-    end
-
-    #
-    # Return the exit status of the last command run.
-    #
-    # If the command is still running, return nil.
-    #
-    def exit_status
-      raise_if_in_run_block "don't use #exit_status in a #run block - wait until the block is complete"
-      @status && @status.exitstatus
+    def output?(pattern, options={})
+      line = next_line(options) or
+        return false
+      !!line.index(pattern)
     end
 
     private  # -------------------------------------------------------
 
-    def expand_path(command)
-      return command if command[0] == ?/
-      env['PATH'].split(/:/).each do |dir|
-        absolute_path = File.expand_path(command, dir)
-        if File.exist?(absolute_path)
-          return absolute_path
-        end
-      end
-      raise CommandNotFound, "command not found: #{command}"
+    def setup_environment
+      # TODO: make this reentrant - fork another process?
+      @original_environment = ENV.to_hash
+      ENV.replace(env)
+    end
+
+    def teardown_environment
+      ENV.replace(@original_environment)
+      @original_environment = nil
     end
 
     def stream_named(symbol)
@@ -185,6 +188,8 @@ module CommandRat
       timeout = 0.001 if timeout == 0  # select treats 0 as infinity
       start = Time.now
       loop do
+        return if block_given? && yield
+
         open_streams = [@stdout, @stderr].reject{|s| s.closed?}
         return if open_streams.empty?
 
@@ -199,8 +204,6 @@ module CommandRat
             stream.close
           end
         end
-
-        return if block_given? && yield
       end
     end
 
@@ -210,6 +213,42 @@ module CommandRat
 
     def raise_if_in_run_block(message)
       raise RunError, message if @in_run_block
+    end
+
+    def next_line(options={})
+      stream = stream_named(options[:on] || :stdout)
+      buffer = buffer_for(stream)
+      read_until do
+        match = buffer.advance_to(/.*?(\n|\r\n?)/) and
+          return match[0]
+      end
+    end
+
+    class Buffer
+      def initialize
+        @string = ''
+        @cursor = 0
+      end
+      attr_accessor :string, :cursor
+
+      def <<(string)
+        @string << string
+      end
+
+      def advance_to(pattern)
+        pattern = pattern.to_s unless pattern.is_a?(Regexp)
+        index = @string.index(pattern, @cursor) or
+          return nil
+
+        if pattern.is_a?(Regexp)
+          match = Regexp.last_match
+          @cursor = match.end(0)
+          match
+        else
+          @cursor += pattern.length
+          pattern.dup
+        end
+      end
     end
   end
 end

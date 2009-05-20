@@ -2,6 +2,14 @@ require 'spec_helper'
 require 'fileutils'
 
 describe "CommandRat::Session" do
+  before do
+    @session = CommandRat::Session.new
+  end
+
+  after do
+    @session.wait_until_done
+  end
+
   describe "#run" do
     it "should run the given command" do
       generate_file_name do |output_name|
@@ -11,7 +19,8 @@ describe "CommandRat::Session" do
           |touch #{output_name}
           |echo error >&2
         EOS
-        rat = CommandRat::Session.run(command)
+        @session.run command
+        @session.wait_until_done
         File.should exist?(output_name)
       end
     end
@@ -19,32 +28,35 @@ describe "CommandRat::Session" do
     it "should find the command in the PATH" do
       command = make_shell_command('echo "found"')
       dirname, basename = File.split(command)
-      rat = CommandRat::Session.new
-      rat.stubs(:env).returns(ENV.to_hash.merge('PATH' => "/junk:#{dirname}:/more/junk"))
-      rat.run(basename)
-      rat.stdout.should == "found\n"
-    end
 
-    it "should raise CommandNotFound if the command is not in the PATH" do
-      command = make_shell_command('echo "found"')
-      dirname, basename = File.split(command)
-      lambda{CommandRat::Session.run(basename)}.should raise_error(CommandRat::CommandNotFound)
+      @session.env['PATH'] = "#{dirname}:#{ENV['PATH']}"
+      @session.run basename
+      @session.stdout.should == "found\n"
     end
+  end
 
-    it "should take a block which can simulate user sessions with #consume_to and #input" do
-      command = make_shell_command(<<-EOS)
-        |echo Enter something:
-        |read response
-        |echo $response!
-      EOS
-      block_run = false
-      CommandRat::Session.run(command) do |rat|
-        block_run = true
-        rat.consume_to("Enter something:\n").should == "Enter something:\n"
-        rat.input "hi\n"
-        rat.consume_to("hi!\n").should == "hi!\n"
-      end
-      block_run.should be_true
+  describe "#running?" do
+    it "should return true while and only while the process is running" do
+      command = make_shell_command('sleep 0.2')
+      @session.running?.should be_false
+
+      @session.run command
+      @session.running?.should be_true
+
+      @session.wait_until_done
+      @session.running?.should be_false
+    end
+  end
+
+  describe "#env" do
+    it "should be used to set the environment for commands" do
+      command = make_shell_command('echo $X:$Y:$Z')
+      ENV['Z'] = 'zz'
+      @session.run command
+      @session.env = {'X' => 'xx', 'Y' => 'yy'}
+      @session.wait_until_done
+      @session.stdout == "xx:yy:"
+      ENV['Z'] = nil
     end
   end
 
@@ -55,61 +67,46 @@ describe "CommandRat::Session" do
         |read response
         |echo $response!
       EOS
-      rat = CommandRat::Session.run(command, 'a', 'b')
-      rat.command.should == [command, 'a', 'b']
+      @session.run command, 'a', 'b'
+      @session.command.should == [command, 'a', 'b']
     end
   end
 
   describe "#consume_to" do
     it "should wait on the stream given by the :stream option" do
-      command = make_shell_command(<<-EOS)
-        |echo hi >&2
-      EOS
-
-      CommandRat::Session.run(command) do |rat|
-        rat.consume_to("hi\n", :on => :stderr).should == "hi\n"
-      end
+      command = make_shell_command('echo hi >&2')
+      @session.run command
+      @session.consume_to("hi\n", :on => :stderr).should == "hi\n"
     end
 
     it "should raise an ArgumentError if an invalid stream option is given" do
-      command = make_shell_command(<<-EOS)
-        |echo hi
-      EOS
-      rat = CommandRat::Session.run(command) do |rat|
-        lambda{rat.consume_to("hi\n", :on => :blarg)}.should raise_error(ArgumentError)
-      end
+      command = make_shell_command('echo hi')
+      @session.run command
+      lambda{@session.consume_to("hi\n", :on => :blarg)}.should raise_error(ArgumentError)
     end
 
     describe "when a string is given" do
       it "should consume the output up to the end of the string" do
         command = make_shell_command(<<-EOS)
-          |echo one
-          |echo two
+          |echo x
+          |echo x
         EOS
-        rat = CommandRat::Session.run(command) do |rat|
-          rat.consume_to("one\n").should == "one\n"
-        end
-        rat.stdout.should == "two\n"
+        @session.run command
+        @session.consume_to("x\n").should == "x\n"
+        @session.consume_to("x\n").should == "x\n"
+        @session.consume_to("x\n").should be_nil
       end
 
       it "should return the string if found" do
-        command = make_shell_command(<<-EOS)
-          |echo hi
-        EOS
-
-        CommandRat::Session.run(command) do |rat|
-          rat.consume_to("hi").should == "hi"
-        end
+        command = make_shell_command('echo hi')
+        @session.run command
+        @session.consume_to("hi").should == "hi"
       end
 
       it "should return nil if EOF is encountered" do
-        command = make_shell_command(<<-EOS)
-          |echo hi
-        EOS
-
-        CommandRat::Session.run(command) do |rat|
-          rat.consume_to("bye").should be_nil
-        end
+        command = make_shell_command('echo hi')
+        @session.run command
+        @session.consume_to("bye").should be_nil
       end
 
       it "should raise a Timeout if the timeout is exceeded" do
@@ -118,51 +115,37 @@ describe "CommandRat::Session" do
           |echo hi
         EOS
 
-        rat = CommandRat::Session.new
-
         # sanity check
-        rat.run(command) do
-          rat.consume_to("hi").should == "hi"
-        end
+        @session.run command
+        @session.consume_to("hi").should == "hi"
+        @session.wait_until_done
 
-        rat.timeout = 0.1
-        rat.run(command) do
-          lambda{rat.consume_to("hi")}.should raise_error(CommandRat::Timeout)
-        end
+        @session.timeout = 0.1
+        @session.run command
+        lambda{@session.consume_to("hi")}.should raise_error(CommandRat::Timeout)
       end
     end
 
     describe "when a regexp is given" do
       it "should consume the output up to the end of the matched pattern" do
-        command = make_shell_command(<<-EOS)
-          |echo a.
-        EOS
-        rat = CommandRat::Session.run(command) do |rat|
-          rat.consume_to(/./)[0].should == 'a'
-        end
-        rat.stdout.should == ".\n"
+        command = make_shell_command('echo a.')
+        @session.run command
+        @session.consume_to(/./)[0].should == 'a'
+        @session.consume_to(/./)[0].should == '.'
       end
 
       it "should return the match data" do
-        command = make_shell_command(<<-EOS)
-          |echo hi
-        EOS
-
-        CommandRat::Session.run(command) do |rat|
-          match = rat.consume_to(/hi/)
-          match.should be_a(MatchData)
-          match.to_a.should == ['hi']
-        end
+        command = make_shell_command('echo hi')
+        @session.run command
+        match = @session.consume_to(/hi/)
+        match.should be_a(MatchData)
+        match.to_a.should == ['hi']
       end
 
       it "should return nil if EOF is encountered" do
-        command = make_shell_command(<<-EOS)
-          |echo hi
-        EOS
-
-        CommandRat::Session.run(command) do |rat|
-          rat.consume_to(/bye/).should be_nil
-        end
+        command = make_shell_command('echo hi')
+        @session.run command
+        @session.consume_to(/bye/).should be_nil
       end
 
       it "should raise a Timeout if the timeout is exceeded" do
@@ -171,167 +154,139 @@ describe "CommandRat::Session" do
           |echo hi
         EOS
 
-        rat = CommandRat::Session.new
-
         # sanity check
-        rat.run(command) do
-          rat.consume_to(/hi/)[0].should == "hi"
-        end
+        @session.run command
+        @session.consume_to(/hi/)[0].should == "hi"
+        @session.wait_until_done
 
-        rat.timeout = 0.1
-        rat.run(command) do
-          lambda{rat.consume_to(/hi/)}.should raise_error(CommandRat::Timeout)
-        end
+        @session.timeout = 0.1
+        @session.run command
+        lambda{@session.consume_to(/hi/)}.should raise_error(CommandRat::Timeout)
       end
+    end
+  end
+
+  describe "#input" do
+    it "should send the given string on standard input" do
+      command = make_shell_command('cat <&0')
+      @session.run command
+      @session.input "hi"
+      @session.wait_until_done
+      @session.stdout.should == "hi"
     end
   end
 
   describe "#stdout" do
-    it "raises a RunError if inside a #run block" do
-      command = make_shell_command(<<-EOS)
-        |read string
-        |echo $string!
-      EOS
-      rat = CommandRat::Session.run(command) do |rat|
-        lambda{rat.stdout}.should raise_error(CommandRat::RunError)
-      end
+    it "should be nil before any commands are run" do
+      @session.stdout.should be_nil
     end
 
-    it "should return any unconsumed data on standard output after a #run block" do
-      command = make_shell_command(<<-EOS)
-        |echo out1
-        |echo out2
-        |echo err >&2
-      EOS
-      rat = CommandRat::Session.run(command) do |rat|
-        rat.consume_to("out1\n")
-      end
-      rat.stdout.should == "out2\n"
+    it "should be '' immediately after the command is run" do
+      command = make_shell_command('')
+      @session.run command
+      @session.stdout.should == ''
     end
 
-    it "should return the standard output after #run is called without a block" do
-      command = make_shell_command(<<-EOS)
-        |echo out
-        |echo err >&2
-      EOS
-      rat = CommandRat::Session.run(command)
-      rat.stdout.should == "out\n"
+    it "should return everything the current command has output to standard output" do
+      command = make_shell_command('echo a; echo b')
+      @session.run command
+      @session.consume_to(/\n/)
+      @session.consume_to(/\n/)
+      @session.stdout.should == "a\nb\n"
     end
   end
 
   describe "#stderr" do
-    it "raises a RunError if inside a #run block" do
-      command = make_shell_command(<<-EOS)
-        |read string
-        |echo $string!
-      EOS
-      rat = CommandRat::Session.run(command) do |rat|
-        lambda{rat.stdout}.should raise_error(CommandRat::RunError)
-      end
+    it "should be nil before any commands are run" do
+      @session.stderr.should be_nil
     end
 
-    it "should return any unconsumed data on standard error after a #run block" do
-      command = make_shell_command(<<-EOS)
-        |echo out
-        |echo err1 >&2
-        |echo err2 >&2
-      EOS
-      rat = CommandRat::Session.run(command) do |rat|
-        rat.consume_to("err1\n", :on => :stderr)
-      end
-      rat.stderr.should == "err2\n"
+    it "should be '' immediately after the command is run" do
+      command = make_shell_command('')
+      @session.run command
+      @session.stderr.should == ''
     end
 
-    it "should return the standard error after #run is called without a block" do
-      command = make_shell_command(<<-EOS)
-        |echo out
-        |echo err >&2
-      EOS
-      rat = CommandRat::Session.run(command)
-      rat.stderr.should == "err\n"
+    it "should return everything the current command has output to standard error" do
+      command = make_shell_command('echo a >&2; echo b >&2')
+      @session.run command
+      @session.consume_to(/\n/, :on => :stderr)
+      @session.consume_to(/\n/, :on => :stderr)
+      @session.stderr.should == "a\nb\n"
     end
   end
 
   describe "#exit_status" do
-    it "raises a RunError if inside a #run block" do
-      command = make_shell_command(<<-EOS)
-        |read string
-        |echo $string!
-      EOS
-      rat = CommandRat::Session.run(command) do |rat|
-        lambda{rat.exit_status}.should raise_error(CommandRat::RunError)
-      end
+    it "should be nil before any commands are run" do
+      @session.exit_status.should be_nil
     end
 
-    it "should return the exit status after #run is called without a block" do
-      command = make_shell_command(<<-EOS)
-        |exit 17
-      EOS
-      rat = CommandRat::Session.run(command)
-      rat.exit_status.should == 17
+    it "should be nil after the command is run, but before it has exited" do
+      command = make_shell_command('')
+      @session.stderr.should be_nil
     end
 
-    it "should return the exit status after a #run block" do
+    it "should wait until the command is done, and return the exit status" do
       command = make_shell_command(<<-EOS)
+        |sleep 0.1
         |exit 17
       EOS
-      rat = CommandRat::Session.run(command) do
-      end
-      rat.exit_status.should == 17
+      @session.run command
+      @session.exit_status.should == 17
     end
   end
 
   describe "#enter" do
     it "should append a record separator if necessary" do
-      command = make_shell_command(<<-EOS)
-        |cat <&0
-      EOS
-      rat = CommandRat::Session.run(command) do |rat|
-        rat.enter "hi"
-      end
-      rat.stdout.should == "hi#$/"
+      command = make_shell_command('cat <&0')
+      @session.run command
+      @session.enter "hi"
+      @session.wait_until_done
+      @session.stdout.should == "hi#$/"
     end
   end
 
-  describe "#expect" do
-    it "should return the matched string if the next line contains the given string" do
-      command = make_shell_command(<<-EOS)
-          |echo 'x yes x'
-        EOS
-      CommandRat::Session.run(command) do |rat|
-        rat.expect('yes').should == 'yes'
-      end
+  describe "#output?" do
+    it "should return true if the next line contains the given string" do
+      command = make_shell_command('echo x yes x')
+      @session.run command
+      @session.output?('yes').should be_true
     end
 
-    it "should return the match if the next line contains the given regexp" do
-      command = make_shell_command(<<-EOS)
-          |echo 'x.x'
-        EOS
-      CommandRat::Session.run(command) do |rat|
-        match = rat.expect(/./)
-        match.should be_a(MatchData)
-        match[0].should == 'x'
-      end
+    it "should return true if the next line contains the given regexp" do
+      command = make_shell_command('echo a')
+      @session.run command
+      @session.output?(/./).should be_true
     end
 
-    it "should return nil if the next line does not contain the given string" do
-      command = make_shell_command(<<-EOS)
-          |echo 'x yes x'
-        EOS
-      CommandRat::Session.run(command) do |rat|
-        rat.expect('no').should be_nil
-      end
+    it "should return false if the next line does not contain the given string" do
+      command = make_shell_command('echo x yes x')
+      @session.run command
+      @session.output?('no').should be_false
     end
 
-    it "should consume the line" do
+    it "should return false if the next line does not contain the given regexp" do
+      command = make_shell_command('echo a')
+      @session.run command
+      @session.output?(/b/).should be_false
+    end
+
+    it "should consume the next line" do
       command = make_shell_command(<<-EOS)
-          |echo x one x
-          |echo x two x
-        EOS
-      rat = CommandRat::Session.run(command) do |rat|
-        rat.expect('one').should == 'one'
-      end
-      rat.stdout.should == "x two x\n"
+        |echo a
+        |echo b
+        |echo a
+      EOS
+      @session.run command
+      @session.output?(/a/).should be_true
+      @session.output?(/a/).should be_false
+      @session.output?(/a/).should be_true
+    end
+
+    it "should use standard error if :on => :stderr is given" do
+      command = make_shell_command('echo x yes x >&2')
+      @session.run command
+      @session.output?('yes', :on => :stderr).should be_true
     end
   end
 end
