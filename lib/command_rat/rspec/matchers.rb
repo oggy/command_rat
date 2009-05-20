@@ -2,36 +2,31 @@ module CommandRat
   module RSpec
     module Matchers
       #
-      # Matches if the given pattern appears in the standard output of
-      # the command, or will before the timeout elapses without any
-      # further input.  Use this inside of a #run block.
+      # Matches if the given pattern appears in the next line of
+      # standard output of the command.
       #
-      #     CommandRat::Session.run('myprog') do |app|
-      #       app.should output('Password: ')
-      #     end
+      #     app = CommandRat::Session.run('echo hi')
+      #     app.should output('hi')
       #
       def output(pattern)
         Output.new(pattern)
       end
 
       #
-      # Matches if the given pattern appears in the standard error of
-      # the command, or will before the timeout elapses without any
-      # further input.  Use this inside of a #run block.
+      # Matches if the given pattern appears in the next line of
+      # standard error of the command.
       #
-      #     CommandRat::Session.run('myprog') do |app|
-      #       app.should give_error('Eek!')
-      #     end
+      #     app = CommandRat::Session.run('myprog')
+      #     app.should give_error('Eek!')
       #
       def give_error(pattern)
         Output.new(pattern, :stream => :stderr)
       end
 
       #
-      # Matches if the command has exited with the given status.  Use
-      # this outside of a #run block.
+      # Matches if the command exited with the given status.
       #
-      #     app = CommandRat::Session.run('myprog')
+      #     app = CommandRat::Session.run('echo')
       #     app.should have_exited_with(0)
       #
       def have_exited_with(status)

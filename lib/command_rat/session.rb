@@ -2,21 +2,21 @@ module CommandRat
   #
   # A session to run commands under.
   #
-  #     app = CommandRat::Session.run('ruby', '-e', 'puts "hi"; STDERR.puts "eek!"') do |app|
-  #       app.expect('Password: ')
-  #       app.enter('wrong pass')
-  #       app.expect('Bzzzt!', :on => :stderr)
-  #     end
-  #     app.exit_status.should != 0
+  #     app = CommandRat::Session.run('ruby', '-e', 'puts "hi"; STDERR.puts "eek!"')
+  #     assert app.output?('Password: ')
+  #     app.enter('wrong pass')
+  #     assert app.output?('Bzzzt!', :on => :stderr)
+  #     assert app.exit_status != 0
   #
   class Session
     def initialize
-      self.timeout = 5
+      self.timeout = 2
       @env = ENV.to_hash
     end
 
     #
-    # Create a CommandRat, and run the given command with it.
+    # Create a Session, and run the given command with it.  Return the
+    # Session.
     #
     def self.run(*args, &block)
       new.run(*args, &block)
@@ -24,6 +24,8 @@ module CommandRat
 
     #
     # Run the given command.
+    #
+    # If a command is already running, wait for it to complete first.
     #
     def run(*command)
       wait_until_done if running?
@@ -59,13 +61,14 @@ module CommandRat
     end
 
     #
-    # Timeout (in seconds) when waiting for output.  Default is 5.
+    # Timeout (in seconds) when waiting for output, or waiting for the
+    # command to finish.  Default is 2.
     #
     attr_accessor :timeout
 
     #
     # Environment variables available to the command.  Default is the
-    # environment of the parent process when the Session is created.
+    # process' environment when the Session is created.
     #
     attr_accessor :env
 
@@ -80,8 +83,8 @@ module CommandRat
 
     #
     # Wait until the given pattern (String or Regexp) occurs on the
-    # target stream (standard output by default, see the :stream
-    # option).  The output is consumed until the end of the pattern.
+    # target stream (standard output by default, see the :on option).
+    # The output is consumed until the end of the pattern.
     #
     # Return the matched string, or raise Timeout if the timeout is
     # exceeded.
@@ -111,6 +114,8 @@ module CommandRat
     # Return all data that has been written to standard output by the
     # command.
     #
+    # Wait for the command to exit first if it's still running.
+    #
     def stdout
       wait_until_done
       return nil if @buffers.nil?
@@ -121,6 +126,8 @@ module CommandRat
     # Return all data that has been written to standard error by the
     # command.
     #
+    # Wait for the command to exit first if it's still running.
+    #
     def stderr
       wait_until_done
       return nil if @buffers.nil?
@@ -128,9 +135,9 @@ module CommandRat
     end
 
     #
-    # Return the exit status of the last command that exited.
+    # Return the exit status of the command.
     #
-    # If a command is still running, return nil.
+    # Wait for the command to exit first if it's still running.
     #
     def exit_status
       wait_until_done
@@ -146,11 +153,14 @@ module CommandRat
     end
 
     #
-    # Like #consume_to, but consume only the next line, and only match
-    # +pattern+ in this line.
+    # Return true if the given pattern appears in the next line of
+    # output, false otherwise.
     #
-    # Return the matched string, or raise Timeout if the timeout is
-    # exceeded.
+    # Raise Timeout if the timeout is exceeded waiting for the next
+    # line of output.
+    #
+    # An :on option may be used to select the stream (:stdout or
+    # :stderr).  Default is :stdout.
     #
     def output?(pattern, options={})
       line = next_line(options) or
