@@ -12,7 +12,7 @@ describe "an RSpec context" do
     @session.wait_until_done
   end
 
-  describe "#output" do
+  describe "#receive_output" do
     it "should match if the given string appears next on standard output" do
       command = make_shell_command(<<-EOS)
         |echo aa
@@ -20,7 +20,7 @@ describe "an RSpec context" do
         |echo cc
       EOS
       @session.run command
-      @context.output("aa\nbb\n").matches?(@session).should be_true
+      @context.receive_output("aa\nbb\n").matches?(@session).should be_true
     end
 
     it "should not match if the given string does not appear next on standard output" do
@@ -29,7 +29,7 @@ describe "an RSpec context" do
         |echo cc
       EOS
       @session.run command
-      @context.output("aa\nbb\n").matches?(@session).should be_false
+      @context.receive_output("aa\nbb\n").matches?(@session).should be_false
     end
 
     it "should not match if the given string appears on standard error, but not standard output" do
@@ -38,13 +38,13 @@ describe "an RSpec context" do
         |echo aa >&2
       EOS
       @session.run command
-      @context.output("aa\n").matches?(@session).should be_false
+      @context.receive_output("aa\n").matches?(@session).should be_false
     end
 
     it "should give a nice failure message for should" do
       command = make_shell_command('echo y')
       @session.run command
-      matcher = @context.output('x')
+      matcher = @context.receive_output('x')
       matcher.matches?(@session).should be_false
       matcher.failure_message_for_should.should == "incorrect string on standard output"
     end
@@ -52,13 +52,13 @@ describe "an RSpec context" do
     it "should give a nice failure message for should not" do
       command = make_shell_command('echo x')
       @session.run command
-      matcher = @context.output('x')
+      matcher = @context.receive_output('x')
       matcher.matches?(@session).should be_true
       matcher.failure_message_for_should_not.should == "incorrect string on standard output"
     end
   end
 
-  describe "#error" do
+  describe "#receive_error" do
     it "should match if the given string appears next on standard error" do
       command = make_shell_command(<<-EOS)
         |echo aa >&2
@@ -66,7 +66,7 @@ describe "an RSpec context" do
         |echo cc >&2
       EOS
       @session.run command
-      @context.error("aa\nbb\n").matches?(@session).should be_true
+      @context.receive_error("aa\nbb\n").matches?(@session).should be_true
     end
 
     it "should not match if the given string does not appear next on standard error" do
@@ -75,7 +75,7 @@ describe "an RSpec context" do
         |echo cc
       EOS
       @session.run command
-      @context.error("aa\nbb\n").matches?(@session).should be_false
+      @context.receive_error("aa\nbb\n").matches?(@session).should be_false
     end
 
     it "should not match if the given string appears on standard output, but not standard error" do
@@ -84,13 +84,13 @@ describe "an RSpec context" do
         |echo aa
       EOS
       @session.run command
-      @context.error("aa\n").matches?(@session).should be_false
+      @context.receive_error("aa\n").matches?(@session).should be_false
     end
 
     it "should give a nice failure message for should" do
       command = make_shell_command('echo y >&2')
       @session.run command
-      matcher = @context.error('x')
+      matcher = @context.receive_error('x')
       matcher.matches?(@session).should be_false
       matcher.failure_message_for_should.should == "incorrect string on standard error"
     end
@@ -98,9 +98,69 @@ describe "an RSpec context" do
     it "should give a nice failure message for should not" do
       command = make_shell_command('echo x >&2')
       @session.run command
-      matcher = @context.error('x')
+      matcher = @context.receive_error('x')
       matcher.matches?(@session).should be_true
       matcher.failure_message_for_should_not.should == "incorrect string on standard error"
+    end
+  end
+
+  describe "#receive_no_more_output" do
+    it "should match if there is no more data on the standard output" do
+      command = make_shell_command('sleep 0.2')
+      @session.run command
+      @context.receive_no_more_output.matches?(@session).should be_true
+    end
+
+    it "should not match if there is more data to come on standard output" do
+      command = make_shell_command('sleep 0.2; echo')
+      @session.run command
+      @context.receive_no_more_output.matches?(@session).should be_false
+    end
+
+    it "should give a nice failure message for should" do
+      command = make_shell_command('echo')
+      @session.run command
+      matcher = @context.receive_no_more_output
+      matcher.matches?(@session).should be_false
+      matcher.failure_message_for_should.should == "unexpected data on standard output"
+    end
+
+    it "should give a nice failure message for should not" do
+      command = make_shell_command('')
+      @session.run command
+      matcher = @context.receive_no_more_output
+      matcher.matches?(@session).should be_true
+      matcher.failure_message_for_should_not.should == "data expected on standard output"
+    end
+  end
+
+  describe "#receive_no_more_errors" do
+    it "should match if there is no more data on the standard error" do
+      command = make_shell_command('sleep 0.2')
+      @session.run command
+      @context.receive_no_more_errors.matches?(@session).should be_true
+    end
+
+    it "should not match if there is more data to come on standard error" do
+      command = make_shell_command('sleep 0.2; echo >&2')
+      @session.run command
+      @context.receive_no_more_errors.matches?(@session).should be_false
+    end
+
+    it "should give a nice failure message for should" do
+      command = make_shell_command('echo >&2')
+      @session.run command
+      matcher = @context.receive_no_more_errors
+      matcher.matches?(@session).should be_false
+      matcher.failure_message_for_should.should == "unexpected data on standard error"
+    end
+
+    it "should give a nice failure message for should not" do
+      command = make_shell_command('')
+      @session.run command
+      matcher = @context.receive_no_more_errors
+      matcher.matches?(@session).should be_true
+      matcher.failure_message_for_should_not.should == "data expected on standard error"
     end
   end
 

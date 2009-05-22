@@ -5,20 +5,40 @@ module CommandRat
       # Matches if the given string appears next in standard output.
       #
       #     app = CommandRat::Session.run('echo hi')
-      #     app.should output("hi\n")
+      #     app.should receive_output("hi\n")
       #
-      def output(pattern)
-        Output.new(pattern, :stderr)
+      def receive_output(pattern)
+        ReceiveOutput.new(pattern, :output)
       end
 
       #
       # Matches if the given string appears next in standard error.
       #
       #     app = CommandRat::Session.run('myprog')
-      #     app.should error("Eek!\n")
+      #     app.should receive_error("Eek!\n")
       #
-      def error(pattern)
-        Error.new(pattern, :stderr)
+      def receive_error(pattern)
+        ReceiveOutput.new(pattern, :error)
+      end
+
+      #
+      # Matches if there is no more output on standard output.
+      #
+      #     app = CommandRat::Session.run('myprog')
+      #     app.should receive_no_more_output
+      #
+      def receive_no_more_output
+        ReceiveNoMoreOutput.new(:output)
+      end
+
+      #
+      # Matches if there is no more output on standard output.
+      #
+      #     app = CommandRat::Session.run('myprog')
+      #     app.should receive_no_more_errors
+      #
+      def receive_no_more_errors
+        ReceiveNoMoreOutput.new(:error)
       end
 
       #
@@ -66,39 +86,45 @@ module CommandRat
         end
       end
 
-      class Output < Matcher  #:nodoc:
+      class ReceiveOutput < Matcher
         def initialize(string, stream)
           @string = string
+          @stream = stream
         end
 
         def matches?(session)
-          session.output?(@string)
+          session.send("receive_#{@stream}?", @string)
         end
 
         def failure_message_for_should
-          "incorrect string on standard output"
+          "incorrect string on standard #{@stream}"
         end
 
         def failure_message_for_should_not
-          "incorrect string on standard output"
+          "incorrect string on standard #{@stream}"
         end
       end
 
-      class Error < Matcher  #:nodoc:
-        def initialize(string, stream)
-          @string = string
+      class ReceiveNoMoreOutput < Matcher
+        def initialize(stream)
+          @stream = stream
         end
 
         def matches?(session)
-          session.error?(@string)
+          if @stream == :error
+            method = :no_more_errors?
+          else
+            method = :no_more_output?
+          end
+          session.send(method)
         end
 
         def failure_message_for_should
-          "incorrect string on standard error"
+          "unexpected data on standard #{@stream}"
         end
 
         def failure_message_for_should_not
-          "incorrect string on standard error"
+          "data expected on standard #{@stream}"
         end
       end
 

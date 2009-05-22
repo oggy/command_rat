@@ -3,9 +3,9 @@ module CommandRat
   # A session to run commands under.
   #
   #     app = CommandRat::Session.run('ruby', '-e', 'puts "hi"; STDERR.puts "eek!"')
-  #     assert app.output?('Password: ')
+  #     assert app.receive_output?('Password: ')
   #     app.enter('wrong pass')
-  #     assert app.output?('Bzzzt!', :on => :stderr)
+  #     assert app.receive_output?('Bzzzt!', :on => :stderr)
   #     assert app.exit_status != 0
   #
   class Session
@@ -154,7 +154,7 @@ module CommandRat
     #
     # Blocks until enough data is available, or EOF is encountered.
     #
-    def output?(string)
+    def receive_output?(string)
       @stdout.next?(string)
     end
 
@@ -163,7 +163,7 @@ module CommandRat
     #
     # Blocks until enough data is available, or EOF is encountered.
     #
-    def error?(string)
+    def receive_error?(string)
       @stderr.next?(string)
     end
 
@@ -181,7 +181,7 @@ module CommandRat
     #
     # Blocks until enough data is available.
     #
-    def no_more_error?
+    def no_more_errors?
       @stderr.eof?
     end
 

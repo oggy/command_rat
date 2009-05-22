@@ -284,21 +284,21 @@ describe "CommandRat::Session" do
     end
   end
 
-  describe "#output?" do
+  describe "#receive_output?" do
     it "should return true if the given string follows on standard output" do
       command = make_shell_command('echo one; echo two; echo three; echo x >&2')
       @session.run command
-      @session.output?("one\n")
-      @session.output?("two\nthree\n")
+      @session.receive_output?("one\n")
+      @session.receive_output?("two\nthree\n")
     end
   end
 
-  describe "#error?" do
+  describe "#receive_error?" do
     it "should return true if the given string follows on standard error" do
       command = make_shell_command('echo one >&2; echo two >&2; echo three >&2; echo x')
       @session.run command
-      @session.error?("one\n")
-      @session.error?("two\nthree\n")
+      @session.receive_error?("one\n")
+      @session.receive_error?("two\nthree\n")
     end
   end
 
@@ -316,17 +316,17 @@ describe "CommandRat::Session" do
     end
   end
 
-  describe "#no_more_error?" do
+  describe "#no_more_errors?" do
     it "should return true if there is no more data on standard error" do
       command = make_shell_command('')
       @session.run command
-      @session.no_more_error?.should be_true
+      @session.no_more_errors?.should be_true
     end
 
     it "should return false if there is more data on standard error" do
       command = make_shell_command('echo x >&2')
       @session.run command
-      @session.no_more_error?.should be_false
+      @session.no_more_errors?.should be_false
     end
   end
 end
