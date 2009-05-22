@@ -2,25 +2,23 @@ module CommandRat
   module RSpec
     module Matchers
       #
-      # Matches if the given pattern appears in the next line of
-      # standard output of the command.
+      # Matches if the given string appears next in standard output.
       #
       #     app = CommandRat::Session.run('echo hi')
-      #     app.should output('hi')
+      #     app.should output("hi\n")
       #
       def output(pattern)
-        Output.new(pattern)
+        Output.new(pattern, :stderr)
       end
 
       #
-      # Matches if the given pattern appears in the next line of
-      # standard error of the command.
+      # Matches if the given string appears next in standard error.
       #
       #     app = CommandRat::Session.run('myprog')
-      #     app.should give_error('Eek!')
+      #     app.should error("Eek!\n")
       #
-      def give_error(pattern)
-        Output.new(pattern, :stream => :stderr)
+      def error(pattern)
+        Error.new(pattern, :stderr)
       end
 
       #
@@ -69,22 +67,38 @@ module CommandRat
       end
 
       class Output < Matcher  #:nodoc:
-        def initialize(pattern, options={})
-          @pattern = pattern
-          @stream = options[:stream] || :stdout
+        def initialize(string, stream)
+          @string = string
         end
 
         def matches?(session)
-          @session = session
-          !!session.consume_to(@pattern, :on => @stream)
+          session.output?(@string)
         end
 
         def failure_message_for_should
-          "next line of #{@stream} did not contain #{@pattern.inspect}"
+          "incorrect string on standard output"
         end
 
         def failure_message_for_should_not
-          "next line of #{@stream} contained #{@pattern.inspect}, but should not have"
+          "incorrect string on standard output"
+        end
+      end
+
+      class Error < Matcher  #:nodoc:
+        def initialize(string, stream)
+          @string = string
+        end
+
+        def matches?(session)
+          session.error?(@string)
+        end
+
+        def failure_message_for_should
+          "incorrect string on standard error"
+        end
+
+        def failure_message_for_should_not
+          "incorrect string on standard error"
         end
       end
 

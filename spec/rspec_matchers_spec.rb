@@ -13,29 +13,32 @@ describe "an RSpec context" do
   end
 
   describe "#output" do
-    it "should match if the next line of standard output contains the given pattern" do
+    it "should match if the given string appears next on standard output" do
+      command = make_shell_command(<<-EOS)
+        |echo aa
+        |echo bb
+        |echo cc
+      EOS
+      @session.run command
+      @context.output("aa\nbb\n").matches?(@session).should be_true
+    end
+
+    it "should not match if the given string does not appear next on standard output" do
+      command = make_shell_command(<<-EOS)
+        |echo aa
+        |echo cc
+      EOS
+      @session.run command
+      @context.output("aa\nbb\n").matches?(@session).should be_false
+    end
+
+    it "should not match if the given string appears on standard error, but not standard output" do
       command = make_shell_command(<<-EOS)
         |echo ax
-        |echo ay
+        |echo aa >&2
       EOS
       @session.run command
-      @context.output(/x/).matches?(@session).should be_true
-      @context.output(/y/).matches?(@session).should be_true
-    end
-
-    it "should not match if the next line of standard output does not contain the given pattern" do
-      command = make_shell_command('echo a')
-      @session.run command
-      @context.output(/x/).matches?(@session).should be_false
-    end
-
-    it "should not match if the pattern only appears in the standard error" do
-      command = make_shell_command(<<-EOS)
-        |echo a
-        |echo x >&2
-      EOS
-      @session.run command
-      @context.output(/x/).matches?(@session).should be_false
+      @context.output("aa\n").matches?(@session).should be_false
     end
 
     it "should give a nice failure message for should" do
@@ -43,7 +46,7 @@ describe "an RSpec context" do
       @session.run command
       matcher = @context.output('x')
       matcher.matches?(@session).should be_false
-      matcher.failure_message_for_should.should == "next line of stdout did not contain \"x\""
+      matcher.failure_message_for_should.should == "incorrect string on standard output"
     end
 
     it "should give a nice failure message for should not" do
@@ -51,50 +54,53 @@ describe "an RSpec context" do
       @session.run command
       matcher = @context.output('x')
       matcher.matches?(@session).should be_true
-      matcher.failure_message_for_should_not.should == "next line of stdout contained \"x\", but should not have"
+      matcher.failure_message_for_should_not.should == "incorrect string on standard output"
     end
   end
 
-  describe "#give_error" do
-    it "should match if the next line of standard error contains the given pattern" do
+  describe "#error" do
+    it "should match if the given string appears next on standard error" do
+      command = make_shell_command(<<-EOS)
+        |echo aa >&2
+        |echo bb >&2
+        |echo cc >&2
+      EOS
+      @session.run command
+      @context.error("aa\nbb\n").matches?(@session).should be_true
+    end
+
+    it "should not match if the given string does not appear next on standard error" do
+      command = make_shell_command(<<-EOS)
+        |echo aa
+        |echo cc
+      EOS
+      @session.run command
+      @context.error("aa\nbb\n").matches?(@session).should be_false
+    end
+
+    it "should not match if the given string appears on standard output, but not standard error" do
       command = make_shell_command(<<-EOS)
         |echo ax >&2
-        |echo ay >&2
+        |echo aa
       EOS
       @session.run command
-      @context.give_error(/x/).matches?(@session).should be_true
-      @context.give_error(/y/).matches?(@session).should be_true
-    end
-
-    it "should not match if the next line of standard error does not contain the given pattern" do
-      command = make_shell_command('echo a >&2')
-      @session.run command
-      @context.give_error(/x/).matches?(@session).should be_false
-    end
-
-    it "should not match if the pattern only appears in the standard output" do
-      command = make_shell_command(<<-EOS)
-        |echo a >&2
-        |echo x
-      EOS
-      @session.run command
-      @context.give_error(/x/).matches?(@session).should be_false
+      @context.error("aa\n").matches?(@session).should be_false
     end
 
     it "should give a nice failure message for should" do
       command = make_shell_command('echo y >&2')
       @session.run command
-      matcher = @context.give_error('x')
+      matcher = @context.error('x')
       matcher.matches?(@session).should be_false
-      matcher.failure_message_for_should.should == "next line of stderr did not contain \"x\""
+      matcher.failure_message_for_should.should == "incorrect string on standard error"
     end
 
     it "should give a nice failure message for should not" do
       command = make_shell_command('echo x >&2')
       @session.run command
-      matcher = @context.give_error('x')
+      matcher = @context.error('x')
       matcher.matches?(@session).should be_true
-      matcher.failure_message_for_should_not.should == "next line of stderr contained \"x\", but should not have"
+      matcher.failure_message_for_should_not.should == "incorrect string on standard error"
     end
   end
 
