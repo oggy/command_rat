@@ -1,12 +1,13 @@
+require 'shellwords'
+
 module CommandRat
   #
   # A session to run commands under.
   #
-  #     app = CommandRat::Session.run('ruby', '-e', 'puts "hi"; STDERR.puts "eek!"')
-  #     assert app.receive_output?('Password: ')
-  #     app.enter('wrong pass')
-  #     assert app.receive_output?('Bzzzt!', :on => :stderr)
-  #     assert app.exit_status != 0
+  #     app = CommandRat::Session.run(%Q[ruby -e 'puts "hi"; STDERR.puts "eek!"'])
+  #     assert app.receive_output?('hi')
+  #     assert app.receive_error?('eek!')
+  #     assert app.exit_status == 0
   #
   class Session
     def initialize
@@ -18,7 +19,7 @@ module CommandRat
     # Create a Session, and run the given command with it.  Return the
     # Session.
     #
-    def self.run(*args, &block)
+    def self.run(command, &block)
       new.run(*args, &block)
     end
 
@@ -27,13 +28,14 @@ module CommandRat
     #
     # If a command is already running, wait for it to complete first.
     #
-    def run(*command)
+    def run(command)
       wait_until_done if running?
       setup_environment
       begin
         @command = command.dup
         @status = nil
-        @pid, @stdin, stdout, stderr = Open4.popen4(*command)
+        words = Shellwords.shellwords(command)
+        @pid, @stdin, stdout, stderr = Open4.popen4(*words)
         @stdout = Stream.new(self, stdout)
         @stderr = Stream.new(self, stderr)
         self

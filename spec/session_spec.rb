@@ -32,6 +32,19 @@ describe "CommandRat::Session" do
       @session.wait_until_done
       File.exist?(output_name).should be_true
     end
+
+    it "should parse the given command like a shell" do
+      output_name = generate_file
+      command = make_shell_command(<<-EOS)
+        |echo $1 >> #{output_name}
+        |echo $2 >> #{output_name}
+        |echo $3 >> #{output_name}
+      EOS
+
+      @session.run "#{command} one 'two three' four\\ five"
+      @session.wait_until_done
+      File.read(output_name).should == "one\ntwo three\nfour five\n"
+    end
   end
 
   describe "#running?" do
@@ -66,8 +79,8 @@ describe "CommandRat::Session" do
         |read response
         |echo $response!
       EOS
-      @session.run command, 'a', 'b'
-      @session.command.should == [command, 'a', 'b']
+      @session.run "#{command} a b"
+      @session.command.should == "#{command} a b"
     end
   end
 
