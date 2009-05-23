@@ -12,26 +12,24 @@ describe "CommandRat::Session" do
 
   describe "#run" do
     it "should run the given command" do
-      output_name = generate_file_name
-      clean_up output_name
-
-      File.exist?(output_name).should be_false  # sanity check
+      output_name = generate_file
       command = make_shell_command("touch #{output_name}")
+
+      FileUtils.rm_f output_name
       @session.run command
       @session.wait_until_done
       File.exist?(output_name).should be_true
     end
 
     it "should find the command in the PATH" do
-      output_name = generate_file_name
-      clean_up output_name
-
-      File.exist?(output_name).should be_false  # sanity check
+      output_name = generate_file
       command = make_shell_command("touch #{output_name}")
       dirname, basename = File.split(command)
 
+      FileUtils.rm_f output_name
       @session.env['PATH'] = "#{dirname}:#{ENV['PATH']}"
       @session.run basename
+      @session.wait_until_done
       File.exist?(output_name).should be_true
     end
   end

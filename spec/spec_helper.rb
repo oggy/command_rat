@@ -1,5 +1,6 @@
 require 'spec'
 require 'command_rat'
+require 'fileutils'
 
 module SpecHelper
   def self.included(mod)
@@ -23,16 +24,20 @@ module SpecHelper
   end
 
   #
-  # Return a temp file name that does not yet exist.
+  # Create a temporary file and return its path.
   #
-  def generate_file_name
-    make_name = lambda{|i| "#{temp_dir}/#{i}"}
-    i = 0
-    name = make_name.call(0)
-    while File.exist?(name)
-      name = make_name.call(i += 1)
+  def generate_file
+    name = nil
+    i = 1
+    loop do
+      name = "#{temp_dir}/#{i}"
+      break if !File.exist?(name)
+      i += 1
     end
-    File.expand_path(name)
+    name = File.expand_path(name)
+    FileUtils.touch name
+    clean_up name
+    name
   end
 
   #
@@ -42,10 +47,9 @@ module SpecHelper
   # The generated file will be cleaned up in the after hook.
   #
   def make_executable(source)
-    name = generate_file_name
     source = source.gsub(/^ *\|/, '')
+    name = generate_file
     open(name, 'w'){|f| f.print(source)}
-    clean_up name
     FileUtils.chmod(0755, name)
     name
   end
