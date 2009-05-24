@@ -326,53 +326,51 @@ describe "CommandRat::Session" do
     end
   end
 
-  describe "#receive_output?" do
+  describe "#receive?" do
     it "should return true if the given string follows on standard output" do
-      command = make_shell_command('echo one; echo two; echo three; echo x >&2')
+      command = make_shell_command('echo x >&2; echo one; echo two; echo three')
       @session.run command
-      @session.receive_output?("one\n").should be_true
-      @session.receive_output?("two\nthree\n").should be_true
+      @session.receive?("one\n").should be_true
+      @session.receive?("two\nthree\n").should be_true
     end
 
     it "should return false if the given string does not follow on standard output" do
       command = make_shell_command('echo one; echo x >&2')
       @session.run command
-      @session.receive_output?("one\ntwo/").should be_false
+      @session.receive?("one\ntwo/").should be_false
     end
 
     it "should not consume anything if it returns false" do
       command = make_shell_command('echo one; echo x')
       @session.run command
-      @session.receive_output?("one\ntwo\n").should be_false  # sanity check
-      @session.receive_output?("one\n").should be_true
-    end
-  end
-
-  describe "#receive_error?" do
-    it "should return true if the given string follows on standard error" do
-      command = make_shell_command('echo one >&2; echo two >&2; echo three >&2; echo x')
-      @session.run command
-      @session.receive_error?("one\n")
-      @session.receive_error?("two\nthree\n")
+      @session.receive?("one\ntwo\n").should be_false  # sanity check
+      @session.receive?("one\n").should be_true
     end
 
-    it "should return false if the given string does not follow on standard error" do
-      command = make_shell_command('echo one >&2; echo x >&2')
+    it "should use standard error if the :on option is set to :stderr" do
+      command = make_shell_command('echo x; echo one >&2; echo two >&2; echo three >&2')
       @session.run command
-      @session.receive_error?("one\ntwo/").should be_false
+      @session.receive?("one\n", :on => :stderr).should be_true
+      @session.receive?("two\nthree\n", :on => :stderr).should be_true
     end
 
-    it "should not consume anything if it returns false" do
-      command = make_shell_command('echo one >&2; echo x >&2')
+    it "should use standard output if the :on option is set to :stdout" do
+      command = make_shell_command('echo x >&2; echo one; echo two; echo three')
       @session.run command
-      @session.receive_error?("one\ntwo\n").should be_false  # sanity check
-      @session.receive_error?("one\n").should be_true
+      @session.receive?("one\n", :on => :stdout).should be_true
+      @session.receive?("two\nthree\n", :on => :stdout).should be_true
+    end
+
+    it "should raise an ArgumentError if the :on option is set to something else" do
+      command = make_shell_command('')
+      @session.run command
+      lambda{@session.receive?('', :on => :bad_stream)}.should raise_error(ArgumentError)
     end
   end
 
   describe "#no_more_output?" do
     it "should return true if there is no more data on standard output" do
-      command = make_shell_command('')
+      command = make_shell_command('echo x >&2')
       @session.run command
       @session.no_more_output?.should be_true
     end
@@ -382,19 +380,23 @@ describe "CommandRat::Session" do
       @session.run command
       @session.no_more_output?.should be_false
     end
-  end
 
-  describe "#no_more_errors?" do
-    it "should return true if there is no more data on standard error" do
-      command = make_shell_command('')
+    it "should use standard error if the :on option is set to :stderr" do
+      command = make_shell_command('echo x')
       @session.run command
-      @session.no_more_errors?.should be_true
+      @session.no_more_output?(:on => :stderr).should be_true
     end
 
-    it "should return false if there is more data on standard error" do
+    it "should use standard output if the :on option is set to :stdout" do
       command = make_shell_command('echo x >&2')
       @session.run command
-      @session.no_more_errors?.should be_false
+      @session.no_more_output?(:on => :stdout).should be_true
+    end
+
+    it "should raise an ArgumentError if the :on option is set to something else" do
+      command = make_shell_command('echo x >&2')
+      @session.run command
+      lambda{@session.no_more_output?(:on => :bad_stream)}.should raise_error(ArgumentError)
     end
   end
 end

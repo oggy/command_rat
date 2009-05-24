@@ -5,8 +5,8 @@ module CommandRat
   # A session to run commands under.
   #
   #     app = CommandRat::Session.run(%Q[ruby -e 'puts "hi"; STDERR.puts "eek!"'])
-  #     assert app.receive_output?('hi')
-  #     assert app.receive_error?('eek!')
+  #     assert app.receive?('hi', :on => :stdout)
+  #     assert app.receive?('eek!', :on => :stderr)
   #     assert app.exit_status == 0
   #
   class Session
@@ -153,62 +153,41 @@ module CommandRat
 
     #
     # Return true if the given +string+ follows on standard output.
-    # If so, consume it too.
+    # If it does, consume it too.
+    #
+    # An :on option may be set to :stdout or :stderr to specify the
+    # stream.  Default is :stdout.
     #
     # Blocks until enough data is available, or EOF is encountered.
     #
-    def receive_output?(string)
-      @stdout.next?(string)
+    def receive?(string, options={})
+      stream(options[:on]).next?(string)
     end
 
     #
-    # Return true if the given +string+ follows on standard error.  If
-    # so, consume it too.
+    # Return true if there is no more data on standard output.
     #
-    # Blocks until enough data is available, or EOF is encountered.
-    #
-    def receive_error?(string)
-      @stderr.next?(string)
-    end
-
-    #
-    # Return true if there is no more data on standard error.
+    # An :on option may be set to :stdout or :stderr to specify the
+    # stream.  Default is :stdout.
     #
     # Blocks until enough data is available.
     #
-    def no_more_output?
-      @stdout.eof?
-    end
-
-    #
-    # Return true if there is no more data on standard error.
-    #
-    # Blocks until enough data is available.
-    #
-    def no_more_errors?
-      @stderr.eof?
+    def no_more_output?(options={})
+      stream(options[:on]).eof?
     end
 
     #
     # Return the next +num_bytes+ from standard output.
     #
-    # If EOF is encountered before this, return what's left on the
-    # stream.  If there is more data on the stream, but it is not
-    # available yet, return what is available now followed by '...'.
-    #
-    def peek_at_output(num_bytes, options={})
-      @stdout.peek(num_bytes)
-    end
-
-    #
-    # Return the next +num_bytes+ from standard error.
+    # An :on option may be set to :stdout or :stderr to specify the
+    # stream.  Default is :stdout.
     #
     # If EOF is encountered before this, return what's left on the
     # stream.  If there is more data on the stream, but it is not
     # available yet, return what is available now followed by '...'.
     #
-    def peek_at_error(num_bytes, options={})
-      @stderr.peek(num_bytes)
+    def peek(num_bytes, options={})
+      stream(options[:on]).peek(num_bytes)
     end
 
     private  # -------------------------------------------------------
@@ -222,6 +201,17 @@ module CommandRat
     def teardown_environment
       ENV.replace(@original_environment)
       @original_environment = nil
+    end
+
+    def stream(name)
+      case name
+      when nil, :stdout
+        @stdout
+      when :stderr
+        @stderr
+      else
+        raise ArgumentError, "invalid stream: #{name} (need :stdout or :stderr)"
+      end
     end
   end
 

@@ -4,41 +4,33 @@ module CommandRat
       #
       # Matches if the given string appears next in standard output.
       #
+      # An :on option may be set to :stdout or :stderr to specify the
+      # stream.  Default is :stdout.
+      #
       #     app = CommandRat::Session.run('echo hi')
-      #     app.should receive_output("hi\n")
+      #     app.should receive("hi\n")
       #
-      def receive_output(pattern)
-        ReceiveOutput.new(pattern, :output)
-      end
-
+      #     app = CommandRat::Session.run('echo hi >&2')
+      #     app.should receive("hi\n", :on => :stderr)
       #
-      # Matches if the given string appears next in standard error.
-      #
-      #     app = CommandRat::Session.run('myprog')
-      #     app.should receive_error("Eek!\n")
-      #
-      def receive_error(pattern)
-        ReceiveOutput.new(pattern, :error)
+      def receive(pattern, options={})
+        Receive.new(pattern, options)
       end
 
       #
       # Matches if there is no more output on standard output.
+      #
+      # An :on option may be set to :stdout or :stderr to specify the
+      # stream.  Default is :stdout.
       #
       #     app = CommandRat::Session.run('myprog')
       #     app.should receive_no_more_output
       #
-      def receive_no_more_output
-        ReceiveNoMoreOutput.new(:output)
-      end
-
-      #
-      # Matches if there is no more output on standard output.
-      #
       #     app = CommandRat::Session.run('myprog')
-      #     app.should receive_no_more_errors
+      #     app.should receive_no_more_output(:on => :stderr)
       #
-      def receive_no_more_errors
-        ReceiveNoMoreOutput.new(:error)
+      def receive_no_more_output(options={})
+        ReceiveNoMore.new(options)
       end
 
       #
@@ -55,81 +47,50 @@ module CommandRat
       class Matcher  #:nodoc:
         protected  # -------------------------------------------------
 
-        def command_string(session)
-          shelljoin(session.command)
-        end
-
-        private  # ---------------------------------------------------
-
-        #
-        # (Backport of ruby 1.9's Shellwords.shelljoin.)
-        #
-        def shelljoin(array)
-          array.map { |arg| shellescape(arg) }.join(' ')
-        end
-
-        def shellescape(str)
-          # An empty argument will be skipped, so return empty quotes.
-          return "''" if str.empty?
-
-          str = str.dup
-
-          # Process as a single byte sequence because not all shell
-          # implementations are multibyte aware.
-          str.gsub!(/([^A-Za-z0-9_\-.,:\/@\n])/n, "\\\\\\1")
-
-          # A LF cannot be escaped with a backslash because a backslash + LF
-          # combo is regarded as line continuation and simply ignored.
-          str.gsub!(/\n/, "'\n'")
-
-          return str
+        def stream(options)
+          options[:on] == :stderr ? 'standard error' : 'standard output'
         end
       end
 
-      class ReceiveOutput < Matcher
-        def initialize(string, stream)
+      class Receive < Matcher
+        def initialize(string, options={})
           @string = string
-          @stream = stream
+          @options = options
         end
 
         def matches?(session)
           @session = session
-          session.send("receive_#{@stream}?", @string)
+          session.receive?(@string, @options)
         end
 
         def failure_message_for_should
           diff = Diff.new(:left_heading => 'Expected:',
                           :right_heading => 'Actual:',
                           :left => @string,
-                          :right => @session.send("peek_at_#{@stream}", (@string.length)))
-          "On standard #{@stream}:\n#{diff.to_s.gsub(/^/, '  ')}"
+                          :right => @session.peek(@string.length, @options))
+          "On #{stream(@options)}:\n#{diff.to_s.gsub(/^/, '  ')}"
         end
 
         def failure_message_for_should_not
-          "Unexpected on standard #{@stream}:\n#{@string.gsub(/^/, '  ')}"
+          "Unexpected on #{stream(@options)}:\n#{@string.gsub(/^/, '  ')}"
         end
       end
 
-      class ReceiveNoMoreOutput < Matcher
-        def initialize(stream)
-          @stream = stream
+      class ReceiveNoMore < Matcher
+        def initialize(options)
+          @options = options
         end
 
         def matches?(session)
-          if @stream == :error
-            method = :no_more_errors?
-          else
-            method = :no_more_output?
-          end
-          session.send(method)
+          session.no_more_output?(@options)
         end
 
         def failure_message_for_should
-          "unexpected data on standard #{@stream}"
+          "unexpected data on #{stream(@options)}"
         end
 
         def failure_message_for_should_not
-          "data expected on standard #{@stream}"
+          "data expected on #{stream(@options)}"
         end
       end
 
