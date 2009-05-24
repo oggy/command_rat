@@ -1,6 +1,7 @@
 require 'spec'
 require 'command_rat'
 require 'fileutils'
+require 'rbconfig'
 
 module SpecHelper
   def self.included(mod)
@@ -60,6 +61,16 @@ module SpecHelper
   #
   def make_shell_command(source)
     make_executable("#!/bin/sh\n" + source)
+  end
+
+  #
+  # Prefix the given source string with a shebang line that launches
+  # the current ruby interpreter, and make a temporary executable out
+  # of it.
+  #
+  def make_ruby_command(source)
+    ruby = File.join(Config::CONFIG['bindir'], Config::CONFIG['RUBY_INSTALL_NAME'])
+    make_executable("#!#{ruby}\n" + source)
   end
 end
 

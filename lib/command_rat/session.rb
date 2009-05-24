@@ -36,8 +36,8 @@ module CommandRat
         @status = nil
         words = Shellwords.shellwords(command)
         @pid, @stdin, stdout, stderr = Open4.popen4(*words)
-        @stdout = Stream.new(self, stdout)
-        @stderr = Stream.new(self, stderr)
+        @stdout = Stream.new(self, 'standard output', stdout)
+        @stderr = Stream.new(self, 'standard error',  stderr)
         self
       ensure
         teardown_environment
@@ -190,6 +190,12 @@ module CommandRat
       stream(options[:on]).peek(num_bytes)
     end
 
+    def inspect
+      string = "#{self.class} running: #{command}\n"
+      string << @stdout.inspect.gsub(/^/, '  ')
+      string << @stderr.inspect.gsub(/^/, '  ')
+    end
+
     private  # -------------------------------------------------------
 
     def setup_environment
@@ -216,13 +222,19 @@ module CommandRat
   end
 
   class Stream
-    def initialize(session, stream)
+    def initialize(session, name, stream)
       @session = session
+      @name = name
       @stream = stream
       @buffer = ''
       @cursor = 0
       @eof_found = false
     end
+
+    #
+    # The human-readable name of the stream (e.g., "standard output").
+    #
+    attr_reader :name
 
     #
     # The buffer of data fetched from the stream so far.
@@ -298,7 +310,8 @@ module CommandRat
     end
 
     #
-    # Return true if EOF has been reached.
+    # Return true if EOF has been reached, and all data has been
+    # consumed.
     #
     # Blocks until EOF is encountered if necessary.
     #
@@ -314,11 +327,12 @@ module CommandRat
       end
     end
 
-    def inspect
-      consumed, remaining = @buffer[0...@cursor], @buffer[@cursor..-1]
-      consumed = consumed.inspect[1...-1]
-      remaining = remaining.inspect[1...-1]
-      "#<Stream: @#{@cursor} \e[1;30m#{consumed}\e[0m#{remaining}#{'$' if @eof_found}>"
+    #
+    # Return true if EOF has been found, even if we haven't consumed
+    # all the data yet.
+    #
+    def eof_found?
+      @eof_found
     end
 
     #
@@ -329,14 +343,30 @@ module CommandRat
     # available yet, return what is available now followed by '...'.
     #
     def peek(num_bytes)
-      begin
-        read_until(0) do
-          @buffer.length >= @cursor + num_bytes || @eof_found
-        end
-      rescue Timeout
-        return @buffer[@cursor..-1] + '...'
+      buffer_available_data
+      if @buffer.length >= @cursor + num_bytes || @eof_found
+        @buffer[@cursor, num_bytes]
+      else
+        @buffer[@cursor..-1] + '...'
       end
-      @buffer[@cursor, num_bytes]
+    end
+
+    #
+    # Read all available data into the buffer.
+    #
+    def buffer_available_data
+      read_until(0)
+    rescue Timeout
+    end
+
+    def inspect
+      buffer_available_data
+      string = "Received on #{name}:\n"
+      string << buffer.gsub(/^/, '  ')
+      string << "\n" unless string[-1] == ?\n
+      newline_indicator = buffer[-1] == ?\n ? 'Received' : 'No'
+      eof_indicator = eof_found? ? 'received' : 'no'
+      string << "(#{newline_indicator} trailing newline, #{eof_indicator} EOF.)\n"
     end
 
     private  # -------------------------------------------------------
@@ -352,7 +382,7 @@ module CommandRat
         return if @eof_found
 
         # select treats 0 as infinity, so clamp it just above 0
-        timeout_remaining = [timeout - (Time.now - start), 0.001].max
+        timeout_remaining = [timeout - (Time.now - start), 0.00001].max
         IO.select([@stream], [], [], timeout_remaining) or
           raise Timeout, "timeout exceeded"
 

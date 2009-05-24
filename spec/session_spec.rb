@@ -399,4 +399,48 @@ describe "CommandRat::Session" do
       lambda{@session.no_more_output?(:on => :bad_stream)}.should raise_error(ArgumentError)
     end
   end
+
+  describe "#inspect" do
+    it "should show everything received on standard output and standard error" do
+      command = make_shell_command(<<-EOS)
+        |echo one
+        |echo two
+        |echo one! >&2
+        |echo two! >&2
+      EOS
+      @session.run command
+      @session.wait_until_done
+      @session.inspect.should == <<-EOS.gsub(/^ *\|/, '')
+        |CommandRat::Session running: #{command}
+        |  Received on standard output:
+        |    one
+        |    two
+        |  (Received trailing newline, received EOF.)
+        |  Received on standard error:
+        |    one!
+        |    two!
+        |  (Received trailing newline, received EOF.)
+      EOS
+    end
+
+    it "should indicate trailing newlines and EOFs" do
+      command = make_ruby_command(<<-EOS)
+        |STDOUT.print "one"; STDOUT.close
+        |STDERR.print "two\n"; STDERR.flush
+        |sleep 0.4
+      EOS
+
+      @session.run command
+      sleep 0.2
+      @session.inspect.should == <<-EOS.gsub(/^ *\|/, '')
+        |CommandRat::Session running: #{command}
+        |  Received on standard output:
+        |    one
+        |  (No trailing newline, received EOF.)
+        |  Received on standard error:
+        |    two
+        |  (Received trailing newline, no EOF.)
+      EOS
+    end
+  end
 end
