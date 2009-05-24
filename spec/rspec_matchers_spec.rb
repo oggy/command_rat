@@ -4,7 +4,7 @@ require 'command_rat/rspec/matchers'
 describe "an RSpec context" do
   before do
     @context = Object.new
-    @context.extend CommandRat::RSpec::Matchers
+    @context.extend Spec::Matchers
     @session = CommandRat::Session.new
   end
 

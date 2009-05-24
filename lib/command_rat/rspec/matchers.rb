@@ -149,3 +149,5 @@ module CommandRat
     end
   end
 end
+
+Spec::Matchers.send :include, CommandRat::RSpec::Matchers
