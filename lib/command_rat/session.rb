@@ -153,6 +153,7 @@ module CommandRat
 
     #
     # Return true if the given +string+ follows on standard output.
+    # If so, consume it too.
     #
     # Blocks until enough data is available, or EOF is encountered.
     #
@@ -161,7 +162,8 @@ module CommandRat
     end
 
     #
-    # Return true if the given +string+ follows on standard error.
+    # Return true if the given +string+ follows on standard error.  If
+    # so, consume it too.
     #
     # Blocks until enough data is available, or EOF is encountered.
     #
@@ -185,6 +187,28 @@ module CommandRat
     #
     def no_more_errors?
       @stderr.eof?
+    end
+
+    #
+    # Return the next +num_bytes+ from standard output.
+    #
+    # If EOF is encountered before this, return what's left on the
+    # stream.  If there is more data on the stream, but it is not
+    # available yet, return what is available now followed by '...'.
+    #
+    def peek_at_output(num_bytes, options={})
+      @stdout.peek(num_bytes)
+    end
+
+    #
+    # Return the next +num_bytes+ from standard error.
+    #
+    # If EOF is encountered before this, return what's left on the
+    # stream.  If there is more data on the stream, but it is not
+    # available yet, return what is available now followed by '...'.
+    #
+    def peek_at_error(num_bytes, options={})
+      @stderr.peek(num_bytes)
     end
 
     private  # -------------------------------------------------------
@@ -273,8 +297,9 @@ module CommandRat
       end
 
       data = @buffer[@cursor, string.length]
-      @cursor += data.length
-      data == string
+      result = data == string and
+        @cursor += data.length
+      result
     end
 
     # (Private to Session.)  Read the remaining data into the buffer.
@@ -304,6 +329,24 @@ module CommandRat
       consumed = consumed.inspect[1...-1]
       remaining = remaining.inspect[1...-1]
       "#<Stream: @#{@cursor} \e[1;30m#{consumed}\e[0m#{remaining}#{'$' if @eof_found}>"
+    end
+
+    #
+    # Return the next +num_bytes+ from standard output.
+    #
+    # If EOF is encountered before this, return what's left on the
+    # stream.  If there is more data on the stream, but it is not
+    # available yet, return what is available now followed by '...'.
+    #
+    def peek(num_bytes)
+      begin
+        read_until(0) do
+          @buffer.length >= @cursor + num_bytes || @eof_found
+        end
+      rescue Timeout
+        return @buffer[@cursor..-1] + '...'
+      end
+      @buffer[@cursor, num_bytes]
     end
 
     private  # -------------------------------------------------------

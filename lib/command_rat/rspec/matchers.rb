@@ -93,15 +93,20 @@ module CommandRat
         end
 
         def matches?(session)
+          @session = session
           session.send("receive_#{@stream}?", @string)
         end
 
         def failure_message_for_should
-          "incorrect string on standard #{@stream}"
+          diff = Diff.new(:left_heading => 'Expected:',
+                          :right_heading => 'Actual:',
+                          :left => @string,
+                          :right => @session.send("peek_at_#{@stream}", (@string.length)))
+          "On standard #{@stream}:\n#{diff.to_s.gsub(/^/, '  ')}"
         end
 
         def failure_message_for_should_not
-          "incorrect string on standard #{@stream}"
+          "Unexpected on standard #{@stream}:\n#{@string.gsub(/^/, '  ')}"
         end
       end
 

@@ -248,6 +248,37 @@ describe "CommandRat::Session" do
         @session.stdout.eof?.should be_false
       end
     end
+
+    describe "#peek" do
+      it "should return the next given number of bytes" do
+        command = make_shell_command('echo 1234567890')
+        @session.run command
+        @session.wait_until_done
+        @session.stdout.peek(5).should == '12345'
+      end
+
+      it "should not consume anything" do
+        command = make_shell_command('echo 1234567890')
+        @session.run command
+        @session.wait_until_done
+        @session.stdout.peek(5)
+        @session.stdout.peek(5).should == '12345'
+      end
+
+      it "should return as much as possible if EOF is encountered" do
+        command = make_shell_command('echo 1234')
+        @session.run command
+        @session.wait_until_done
+        @session.stdout.peek(6).should == "1234\n"
+      end
+
+      it "should not block, and append '...', if there is not enough data available yet" do
+        command = make_shell_command('echo 1234; sleep 0.2; echo 5678')
+        @session.run command
+        sleep 0.1
+        @session.stdout.peek(10).should == "1234\n..."
+      end
+    end
   end
 
   describe "#exit_status" do
@@ -299,8 +330,21 @@ describe "CommandRat::Session" do
     it "should return true if the given string follows on standard output" do
       command = make_shell_command('echo one; echo two; echo three; echo x >&2')
       @session.run command
-      @session.receive_output?("one\n")
-      @session.receive_output?("two\nthree\n")
+      @session.receive_output?("one\n").should be_true
+      @session.receive_output?("two\nthree\n").should be_true
+    end
+
+    it "should return false if the given string does not follow on standard output" do
+      command = make_shell_command('echo one; echo x >&2')
+      @session.run command
+      @session.receive_output?("one\ntwo/").should be_false
+    end
+
+    it "should not consume anything if it returns false" do
+      command = make_shell_command('echo one; echo x')
+      @session.run command
+      @session.receive_output?("one\ntwo\n").should be_false  # sanity check
+      @session.receive_output?("one\n").should be_true
     end
   end
 
@@ -310,6 +354,19 @@ describe "CommandRat::Session" do
       @session.run command
       @session.receive_error?("one\n")
       @session.receive_error?("two\nthree\n")
+    end
+
+    it "should return false if the given string does not follow on standard error" do
+      command = make_shell_command('echo one >&2; echo x >&2')
+      @session.run command
+      @session.receive_error?("one\ntwo/").should be_false
+    end
+
+    it "should not consume anything if it returns false" do
+      command = make_shell_command('echo one >&2; echo x >&2')
+      @session.run command
+      @session.receive_error?("one\ntwo\n").should be_false  # sanity check
+      @session.receive_error?("one\n").should be_true
     end
   end
 

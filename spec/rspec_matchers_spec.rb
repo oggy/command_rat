@@ -42,19 +42,38 @@ describe "an RSpec context" do
     end
 
     it "should give a nice failure message for should" do
-      command = make_shell_command('echo y')
+      command = make_shell_command(<<-EOS)
+        |echo right
+        |echo wrong
+        |echo right
+      EOS
       @session.run command
-      matcher = @context.receive_output('x')
+      matcher = @context.receive_output("right\nright\nright\n")
       matcher.matches?(@session).should be_false
-      matcher.failure_message_for_should.should == "incorrect string on standard output"
+      matcher.failure_message_for_should.should == <<-EOS.gsub(/^ *\|/, '')
+        |On standard output:
+        |  Expected: | Actual:
+        |  right     | right
+        |  right     X wrong
+        |  right     | right
+      EOS
     end
 
     it "should give a nice failure message for should not" do
-      command = make_shell_command('echo x')
+      command = make_shell_command(<<-EOS)
+        |echo one
+        |echo two
+        |echo three
+      EOS
       @session.run command
-      matcher = @context.receive_output('x')
+      matcher = @context.receive_output("one\ntwo\nthree\n")
       matcher.matches?(@session).should be_true
-      matcher.failure_message_for_should_not.should == "incorrect string on standard output"
+      matcher.failure_message_for_should_not.should == <<-EOS.gsub(/^ *\|/, '')
+        |Unexpected on standard output:
+        |  one
+        |  two
+        |  three
+      EOS
     end
   end
 
@@ -88,19 +107,38 @@ describe "an RSpec context" do
     end
 
     it "should give a nice failure message for should" do
-      command = make_shell_command('echo y >&2')
+      command = make_shell_command(<<-EOS)
+        |echo right >&2
+        |echo wrong >&2
+        |echo right >&2
+      EOS
       @session.run command
-      matcher = @context.receive_error('x')
+      matcher = @context.receive_error("right\nright\nright\n")
       matcher.matches?(@session).should be_false
-      matcher.failure_message_for_should.should == "incorrect string on standard error"
+      matcher.failure_message_for_should.should == <<-EOS.gsub(/^ *\|/, '')
+        |On standard error:
+        |  Expected: | Actual:
+        |  right     | right
+        |  right     X wrong
+        |  right     | right
+      EOS
     end
 
     it "should give a nice failure message for should not" do
-      command = make_shell_command('echo x >&2')
+      command = make_shell_command(<<-EOS)
+        |echo one >&2
+        |echo two >&2
+        |echo three >&2
+      EOS
       @session.run command
-      matcher = @context.receive_error('x')
+      matcher = @context.receive_error("one\ntwo\nthree\n")
       matcher.matches?(@session).should be_true
-      matcher.failure_message_for_should_not.should == "incorrect string on standard error"
+      matcher.failure_message_for_should_not.should == <<-EOS.gsub(/^ *\|/, '')
+        |Unexpected on standard error:
+        |  one
+        |  two
+        |  three
+      EOS
     end
   end
 
