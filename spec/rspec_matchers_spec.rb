@@ -55,6 +55,8 @@ describe "an RSpec context" do
         |echo right
         |echo wrong
         |echo right
+        |echo error line 1 >&2
+        |echo error line 2 >&2
       EOS
       @session.run command
       matcher = @context.receive("right\nright\nright\n")
@@ -65,6 +67,10 @@ describe "an RSpec context" do
         |  right     | right
         |  right     X wrong
         |  right     | right
+        |Received on standard error:
+        |  error line 1
+        |  error line 2
+        |(Received trailing newline, received EOF.)
       EOS
     end
 

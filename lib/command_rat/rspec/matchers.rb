@@ -68,7 +68,11 @@ module CommandRat
                           :right_heading => 'Actual:',
                           :left => @string,
                           :right => @session.peek(@string.length, @options))
-          "On #{stream(@options)}:\n#{diff.to_s.gsub(/^/, '  ')}"
+          message = "On #{stream(@options)}:\n#{diff.to_s.gsub(/^/, '  ')}"
+          unless @options[:on] == :stderr
+            message << @session.stderr.inspect
+          end
+          message
         end
 
         def failure_message_for_should_not
