@@ -427,11 +427,11 @@ describe "CommandRat::Session" do
       command = make_ruby_command(<<-EOS)
         |STDOUT.print "one"; STDOUT.close
         |STDERR.print "two\n"; STDERR.flush
-        |sleep 0.4
+        |sleep 0.8
       EOS
 
       @session.run command
-      sleep 0.2
+      sleep 0.4
       @session.inspect.should == <<-EOS.gsub(/^ *\|/, '')
         |CommandRat::Session running: #{command}
         |  Received on standard output:
