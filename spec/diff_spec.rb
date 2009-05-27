@@ -70,10 +70,10 @@ describe "Diff" do
                                   :left => "one\ntwo",
                                   :right => "one\ntwo\n")
       diff.to_s.should == <<-EOS.gsub(/^ *\|/, '')
-        |Left:             | Right:
-        |one               | one
-        |two               | two
-        |No newline at EOF <
+        |Left:               | Right:
+        |one                 | one
+        |two                 | two
+        |No trailing newline <
       EOS
     end
 
@@ -86,7 +86,7 @@ describe "Diff" do
         |Left: | Right:
         |one   | one
         |two   | two
-        |      > No newline at EOF
+        |      > No trailing newline
       EOS
     end
   end

@@ -23,7 +23,7 @@ module CommandRat
     def side(heading, body)
       lines = [heading, *body.split(/\n/)]
       if body.length > 0 && body[-1] != ?\n
-        lines << :'No newline at EOF'
+        lines << :'No trailing newline'
       end
 
       {
