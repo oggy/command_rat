@@ -177,17 +177,14 @@ module CommandRat
     end
 
     #
-    # Return the next +num_bytes+ from standard output.
+    # Return everything currently available after the cursor on
+    # standard output.
     #
     # An :on option may be set to :stdout or :stderr to specify the
     # stream.  Default is :stdout.
     #
-    # If EOF is encountered before this, return what's left on the
-    # stream.  If there is more data on the stream, but it is not
-    # available yet, return what is available now followed by '...'.
-    #
-    def peek(num_bytes, options={})
-      stream(options[:on]).peek(num_bytes)
+    def peek(options={})
+      stream(options[:on]).peek
     end
 
     def inspect
@@ -336,19 +333,11 @@ module CommandRat
     end
 
     #
-    # Return the next +num_bytes+ from standard output.
+    # Return everything currently available after the cursor.
     #
-    # If EOF is encountered before this, return what's left on the
-    # stream.  If there is more data on the stream, but it is not
-    # available yet, return what is available now followed by '...'.
-    #
-    def peek(num_bytes)
+    def peek
       buffer_available_data
-      if @buffer.length >= @cursor + num_bytes || @eof_found
-        @buffer[@cursor, num_bytes]
-      else
-        @buffer[@cursor..-1] + '...'
-      end
+      @buffer[@cursor..-1]
     end
 
     #

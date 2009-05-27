@@ -250,33 +250,19 @@ describe "CommandRat::Session" do
     end
 
     describe "#peek" do
-      it "should return the next given number of bytes" do
-        command = make_shell_command('echo 1234567890')
+      it "should return everything available on the stream" do
+        command = make_shell_command('echo 1234; sleep 0.4; echo 5678')
         @session.run command
-        @session.wait_until_done
-        @session.stdout.peek(5).should == '12345'
+        sleep 0.2
+        @session.stdout.peek.should == "1234\n"
       end
 
       it "should not consume anything" do
-        command = make_shell_command('echo 1234567890')
-        @session.run command
-        @session.wait_until_done
-        @session.stdout.peek(5)
-        @session.stdout.peek(5).should == '12345'
-      end
-
-      it "should return as much as possible if EOF is encountered" do
         command = make_shell_command('echo 1234')
         @session.run command
         @session.wait_until_done
-        @session.stdout.peek(6).should == "1234\n"
-      end
-
-      it "should not block, and append '...', if there is not enough data available yet" do
-        command = make_shell_command('echo 1234; sleep 0.2; echo 5678')
-        @session.run command
-        sleep 0.1
-        @session.stdout.peek(10).should == "1234\n..."
+        @session.peek
+        @session.stdout.peek.should == "1234\n"
       end
     end
   end
@@ -397,6 +383,22 @@ describe "CommandRat::Session" do
       command = make_shell_command('echo x >&2')
       @session.run command
       lambda{@session.no_more_output?(:on => :bad_stream)}.should raise_error(ArgumentError)
+    end
+  end
+
+  describe "#peek" do
+    it "should return the available data on standard output" do
+      command = make_shell_command('echo out; echo err >&2')
+      @session.run command
+      @session.wait_until_done
+      @session.peek.should == "out\n"
+    end
+
+    it "should use standard error if the :on option is set to :stderr" do
+      command = make_shell_command('echo out; echo err >&2')
+      @session.run command
+      @session.wait_until_done
+      @session.peek(:on => :stderr).should == "err\n"
     end
   end
 

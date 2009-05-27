@@ -59,6 +59,7 @@ describe "an RSpec context" do
         |echo error line 2 >&2
       EOS
       @session.run command
+      @session.wait_until_done
       matcher = @context.receive("right\nright\nright\n")
       matcher.matches?(@session).should be_false
       matcher.failure_message_for_should.should == <<-EOS.gsub(/^ *\|/, '')

@@ -67,8 +67,10 @@ module CommandRat
           diff = Diff.new(:left_heading => 'Expected:',
                           :right_heading => 'Actual:',
                           :left => @string,
-                          :right => @session.peek(@string.length, @options))
+                          :right => @session.peek(@options))
           message = "On #{stream(@options)}:\n#{diff.to_s.gsub(/^/, '  ')}"
+          # If we didn't print out stderr above, print it here, since
+          # it may contain useful error messages.
           unless @options[:on] == :stderr
             message << @session.stderr.inspect
           end
