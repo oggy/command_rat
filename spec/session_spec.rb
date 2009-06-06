@@ -294,24 +294,6 @@ describe "CommandRat::Session" do
     end
   end
 
-  describe "#standard_output" do
-    it "should return all data the command output on standard output" do
-      command = make_shell_command('echo one; echo two; echo x >&2')
-      @session.run command
-      @session.stdout.consume_to(/n/)
-      @session.standard_output.should == "one\ntwo\n"
-    end
-  end
-
-  describe "#standard_error" do
-    it "should return all data the command output on standard error" do
-      command = make_shell_command('echo one >&2; echo two >&2; echo x')
-      @session.run command
-      @session.stdout.consume_to(/n/)
-      @session.standard_error.should == "one\ntwo\n"
-    end
-  end
-
   describe "#receive?" do
     it "should return true if the given string follows on standard output" do
       command = make_shell_command('echo x >&2; echo one; echo two; echo three')

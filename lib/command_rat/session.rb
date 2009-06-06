@@ -130,28 +130,6 @@ module CommandRat
     end
 
     #
-    # Return all data output on standard output (including consumed
-    # data).
-    #
-    # Block until the command exits if necessary.
-    #
-    def standard_output
-      wait_until_done
-      @stdout.buffer.dup
-    end
-
-    #
-    # Return all data output on standard output (including consumed
-    # data).
-    #
-    # Block until the command exits if necessary.
-    #
-    def standard_error
-      wait_until_done
-      @stderr.buffer.dup
-    end
-
-    #
     # Return true if the given +string+ follows on standard output.
     # If it does, consume it too.
     #
