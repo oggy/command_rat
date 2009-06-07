@@ -250,20 +250,6 @@ module CommandRat
     end
 
     #
-    # Return the next line of output.
-    #
-    # Block until the line is complete.  The line may be terminated by
-    # a LF, CR, CRLF, or EOF.
-    #
-    def next_line(options={})
-      match = consume_to(/(.*?)(?:\n|\r\n?)/) and
-        return match[1]
-
-      last_line = advance_to_end
-      last_line.empty? ? nil : last_line
-    end
-
-    #
     # Return true if the given string follows, false otherwise.
     #
     # Block until enough data is available, or EOF is encountered.

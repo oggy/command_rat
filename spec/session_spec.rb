@@ -196,32 +196,6 @@ describe "CommandRat::Session" do
       end
     end
 
-    describe "#next_line" do
-      it "should return the next line of the output, without the line terminator" do
-        command = make_shell_command('echo one; echo two')
-        @session.run command
-        @session.standard_output.next_line.should == "one"
-        @session.standard_output.next_line.should == "two"
-      end
-
-      it "should recognize LF, CR, CRLF, and EOF as line terminators" do
-        command = make_shell_command('cat <&0')
-        @session.run command
-        @session.send_input "one\ntwo\rthree\r\nfour"
-        @session.close_input
-        @session.standard_output.next_line.should == 'one'
-        @session.standard_output.next_line.should == 'two'
-        @session.standard_output.next_line.should == 'three'
-        @session.standard_output.next_line.should == 'four'
-      end
-
-      it "should return nil if there are no more lines" do
-        command = make_shell_command('')
-        @session.run command
-        @session.standard_output.next_line.should be_nil
-      end
-    end
-
     describe "#eof?" do
       it "should return true if EOF has been encountered" do
         command = make_shell_command('')
