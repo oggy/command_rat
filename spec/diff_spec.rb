@@ -89,5 +89,48 @@ describe "Diff" do
         |      > No trailing newline
       EOS
     end
+
+    it "should show the EOF indicators if given" do
+      diff = CommandRat::Diff.new(:left_heading => 'Left:',
+                                  :right_heading => 'Right:',
+                                  :left => "one\ntwo\n",
+                                  :right => "one\ntwo\n",
+                                  :left_eof => true,
+                                  :right_eof => false)
+      diff.to_s.should == <<-EOS.gsub(/^ *\|/, '')
+        |Left:        | Right:
+        |one          | one
+        |two          | two
+        |EOF received X EOF not yet received
+      EOS
+    end
+
+    it "should show the EOF indicators even if they're the same on both sides" do
+      diff = CommandRat::Diff.new(:left_heading => 'Left:',
+                                  :right_heading => 'Right:',
+                                  :left => "one\ntwo\n",
+                                  :right => "one\ntwo\n",
+                                  :left_eof => true,
+                                  :right_eof => true)
+      diff.to_s.should == <<-EOS.gsub(/^ *\|/, '')
+        |Left:        | Right:
+        |one          | one
+        |two          | two
+        |EOF received | EOF received
+      EOS
+    end
+
+    it "should comma-separate indicators if both are present" do
+      diff = CommandRat::Diff.new(:left_heading => 'Left:',
+                                  :right_heading => 'Right:',
+                                  :left => "x",
+                                  :right => '',
+                                  :left_eof => true)
+      diff.to_s.should == <<-EOS.gsub(/^ *\|/, '')
+        |Left:                             | Right:
+        |x                                 <
+        |No trailing newline, EOF received <
+      EOS
+    end
   end
 end
