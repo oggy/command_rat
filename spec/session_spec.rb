@@ -67,7 +67,7 @@ describe "CommandRat::Session" do
       @session.run command
       @session.env = {'X' => 'xx', 'Y' => 'yy'}
       @session.wait_until_done
-      @session.stdout == "xx:yy:"
+      @session.standard_output == "xx:yy:"
       ENV['Z'] = nil
     end
   end
@@ -90,33 +90,33 @@ describe "CommandRat::Session" do
       @session.run command
       @session.send_input "hi"
       @session.wait_until_done
-      @session.stdout.buffer.should == "hi"
+      @session.standard_output.buffer.should == "hi"
     end
   end
 
-  describe "#stdout" do
+  describe "#standard_output" do
     it "should be nil before any commands are run" do
-      @session.stdout.should be_nil
+      @session.standard_output.should be_nil
     end
 
     it "should return the standard output stream" do
       command = make_shell_command('echo out; echo err >&2')
       @session.run command
-      @session.stdout.should be_a(CommandRat::Stream)
-      @session.stdout.buffer == "out\n"
+      @session.standard_output.should be_a(CommandRat::Stream)
+      @session.standard_output.buffer == "out\n"
     end
   end
 
-  describe "#stderr" do
+  describe "#standard_error" do
     it "should be nil before any commands are run" do
-      @session.stdout.should be_nil
+      @session.standard_error.should be_nil
     end
 
     it "should return the standard error stream" do
       command = make_shell_command('echo out; echo err >&2')
       @session.run command
-      @session.stderr.should be_a(CommandRat::Stream)
-      @session.stderr.buffer == "err\n"
+      @session.standard_error.should be_a(CommandRat::Stream)
+      @session.standard_error.buffer == "err\n"
     end
   end
 
@@ -126,21 +126,21 @@ describe "CommandRat::Session" do
         it "should return the string if found" do
           command = make_shell_command('echo hi')
           @session.run command
-          @session.stdout.consume_to("hi").should == "hi"
+          @session.standard_output.consume_to("hi").should == "hi"
         end
 
         it "should return nil if EOF is encountered" do
           command = make_shell_command('echo hi')
           @session.run command
-          @session.stdout.consume_to("bye").should be_nil
+          @session.standard_output.consume_to("bye").should be_nil
         end
 
         it "consume up to the end of the given pattern" do
           command = make_shell_command('echo x; echo x')
           @session.run command
-          @session.stdout.consume_to("x\n").should == "x\n"
-          @session.stdout.consume_to("x\n").should == "x\n"
-          @session.stdout.consume_to("x\n").should be_nil
+          @session.standard_output.consume_to("x\n").should == "x\n"
+          @session.standard_output.consume_to("x\n").should == "x\n"
+          @session.standard_output.consume_to("x\n").should be_nil
         end
 
         it "should raise a Timeout if the timeout is exceeded" do
@@ -148,12 +148,12 @@ describe "CommandRat::Session" do
 
           # sanity check
           @session.run command
-          @session.stdout.consume_to("hi").should == "hi"
+          @session.standard_output.consume_to("hi").should == "hi"
           @session.wait_until_done
 
           @session.timeout = 0.1
           @session.run command
-          lambda{@session.stdout.consume_to("hi")}.should raise_error(CommandRat::Timeout)
+          lambda{@session.standard_output.consume_to("hi")}.should raise_error(CommandRat::Timeout)
           @session.timeout = 0.2  # make sure we clean up properly
         end
       end
@@ -162,14 +162,14 @@ describe "CommandRat::Session" do
         it "should consume the output up to the end of the matched pattern" do
           command = make_shell_command('echo a.')
           @session.run command
-          @session.stdout.consume_to(/./)[0].should == 'a'
-          @session.stdout.consume_to(/./)[0].should == '.'
+          @session.standard_output.consume_to(/./)[0].should == 'a'
+          @session.standard_output.consume_to(/./)[0].should == '.'
         end
 
         it "should return the match data" do
           command = make_shell_command('echo hi')
           @session.run command
-          match = @session.stdout.consume_to(/hi/)
+          match = @session.standard_output.consume_to(/hi/)
           match.should be_a(MatchData)
           match.to_a.should == ['hi']
         end
@@ -177,7 +177,7 @@ describe "CommandRat::Session" do
         it "should return nil if EOF is encountered" do
           command = make_shell_command('echo hi')
           @session.run command
-          @session.stdout.consume_to(/bye/).should be_nil
+          @session.standard_output.consume_to(/bye/).should be_nil
         end
 
         it "should raise a Timeout if the timeout is exceeded" do
@@ -185,12 +185,12 @@ describe "CommandRat::Session" do
 
           # sanity check
           @session.run command
-          @session.stdout.consume_to(/hi/)[0].should == "hi"
+          @session.standard_output.consume_to(/hi/)[0].should == "hi"
           @session.wait_until_done
 
           @session.timeout = 0.1
           @session.run command
-          lambda{@session.stdout.consume_to(/hi/)}.should raise_error(CommandRat::Timeout)
+          lambda{@session.standard_output.consume_to(/hi/)}.should raise_error(CommandRat::Timeout)
           @session.timeout = 0.2  # make sure we clean up properly
         end
       end
@@ -200,8 +200,8 @@ describe "CommandRat::Session" do
       it "should return the next line of the output, without the line terminator" do
         command = make_shell_command('echo one; echo two')
         @session.run command
-        @session.stdout.next_line.should == "one"
-        @session.stdout.next_line.should == "two"
+        @session.standard_output.next_line.should == "one"
+        @session.standard_output.next_line.should == "two"
       end
 
       it "should recognize LF, CR, CRLF, and EOF as line terminators" do
@@ -209,16 +209,16 @@ describe "CommandRat::Session" do
         @session.run command
         @session.send_input "one\ntwo\rthree\r\nfour"
         @session.close_input
-        @session.stdout.next_line.should == 'one'
-        @session.stdout.next_line.should == 'two'
-        @session.stdout.next_line.should == 'three'
-        @session.stdout.next_line.should == 'four'
+        @session.standard_output.next_line.should == 'one'
+        @session.standard_output.next_line.should == 'two'
+        @session.standard_output.next_line.should == 'three'
+        @session.standard_output.next_line.should == 'four'
       end
 
       it "should return nil if there are no more lines" do
         command = make_shell_command('')
         @session.run command
-        @session.stdout.next_line.should be_nil
+        @session.standard_output.next_line.should be_nil
       end
     end
 
@@ -227,25 +227,25 @@ describe "CommandRat::Session" do
         command = make_shell_command('')
         @session.run command
         @session.wait_until_done
-        @session.stdout.eof?.should be_true
+        @session.standard_output.eof?.should be_true
       end
 
       it "should return false if there is more buffered data" do
         command = make_shell_command('echo x')
         @session.run command
-        @session.stdout.eof?.should be_false
+        @session.standard_output.eof?.should be_false
       end
 
       it "should return true if the end of the buffer has been reached, and the EOF comes in soon" do
         command = make_shell_command('sleep 0.1')
         @session.run command
-        @session.stdout.eof?.should be_true
+        @session.standard_output.eof?.should be_true
       end
 
       it "should return true if the end of the buffer has been reached, and more data comes in later" do
         command = make_shell_command('sleep 0.1; echo x')
         @session.run command
-        @session.stdout.eof?.should be_false
+        @session.standard_output.eof?.should be_false
       end
     end
 
@@ -254,7 +254,7 @@ describe "CommandRat::Session" do
         command = make_shell_command('echo 1234; sleep 0.4; echo 5678')
         @session.run command
         sleep 0.2
-        @session.stdout.peek.should == "1234\n"
+        @session.standard_output.peek.should == "1234\n"
       end
 
       it "should not consume anything" do
@@ -262,7 +262,7 @@ describe "CommandRat::Session" do
         @session.run command
         @session.wait_until_done
         @session.peek
-        @session.stdout.peek.should == "1234\n"
+        @session.standard_output.peek.should == "1234\n"
       end
     end
   end
@@ -274,7 +274,7 @@ describe "CommandRat::Session" do
 
     it "should be nil after the command is run, but before it has exited" do
       command = make_shell_command('')
-      @session.stderr.should be_nil
+      @session.exit_status.should be_nil
     end
 
     it "should wait until the command is done, and return the exit status" do
@@ -290,7 +290,7 @@ describe "CommandRat::Session" do
       @session.run command
       @session.enter "hi"
       @session.wait_until_done
-      @session.stdout.buffer.should == "hi#$/"
+      @session.standard_output.buffer.should == "hi#$/"
     end
   end
 
@@ -315,18 +315,18 @@ describe "CommandRat::Session" do
       @session.receive?("one\n").should be_true
     end
 
-    it "should use standard error if the :on option is set to :stderr" do
+    it "should use standard error if the :on option is set to :standard_error" do
       command = make_shell_command('echo x; echo one >&2; echo two >&2; echo three >&2')
       @session.run command
-      @session.receive?("one\n", :on => :stderr).should be_true
-      @session.receive?("two\nthree\n", :on => :stderr).should be_true
+      @session.receive?("one\n", :on => :standard_error).should be_true
+      @session.receive?("two\nthree\n", :on => :standard_error).should be_true
     end
 
-    it "should use standard output if the :on option is set to :stdout" do
+    it "should use standard output if the :on option is set to :standard_output" do
       command = make_shell_command('echo x >&2; echo one; echo two; echo three')
       @session.run command
-      @session.receive?("one\n", :on => :stdout).should be_true
-      @session.receive?("two\nthree\n", :on => :stdout).should be_true
+      @session.receive?("one\n", :on => :standard_output).should be_true
+      @session.receive?("two\nthree\n", :on => :standard_output).should be_true
     end
 
     it "should raise an ArgumentError if the :on option is set to something else" do
@@ -349,16 +349,16 @@ describe "CommandRat::Session" do
       @session.no_more_output?.should be_false
     end
 
-    it "should use standard error if the :on option is set to :stderr" do
+    it "should use standard error if the :on option is set to :standard_error" do
       command = make_shell_command('echo x')
       @session.run command
-      @session.no_more_output?(:on => :stderr).should be_true
+      @session.no_more_output?(:on => :standard_error).should be_true
     end
 
-    it "should use standard output if the :on option is set to :stdout" do
+    it "should use standard output if the :on option is set to :standard_output" do
       command = make_shell_command('echo x >&2')
       @session.run command
-      @session.no_more_output?(:on => :stdout).should be_true
+      @session.no_more_output?(:on => :standard_output).should be_true
     end
 
     it "should raise an ArgumentError if the :on option is set to something else" do
@@ -376,11 +376,11 @@ describe "CommandRat::Session" do
       @session.peek.should == "out\n"
     end
 
-    it "should use standard error if the :on option is set to :stderr" do
+    it "should use standard error if the :on option is set to :standard_error" do
       command = make_shell_command('echo out; echo err >&2')
       @session.run command
       @session.wait_until_done
-      @session.peek(:on => :stderr).should == "err\n"
+      @session.peek(:on => :standard_error).should == "err\n"
     end
   end
 

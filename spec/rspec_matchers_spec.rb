@@ -32,22 +32,22 @@ describe "an RSpec context" do
       @context.receive("aa\nbb\n").matches?(@session).should be_false
     end
 
-    it "should use standard error if the :on option is set to :stderr" do
+    it "should use standard error if the :on option is set to :standard_error" do
       command = make_shell_command(<<-EOS)
         |echo ax
         |echo aa >&2
       EOS
       @session.run command
-      @context.receive("aa\n", :on => :stderr).matches?(@session).should be_true
+      @context.receive("aa\n", :on => :standard_error).matches?(@session).should be_true
     end
 
-    it "should use standard output if the :on option is set to :stdout" do
+    it "should use standard output if the :on option is set to :standard_output" do
       command = make_shell_command(<<-EOS)
         |echo ax >&2
         |echo aa
       EOS
       @session.run command
-      @context.receive("aa\n", :on => :stdout).matches?(@session).should be_true
+      @context.receive("aa\n", :on => :standard_output).matches?(@session).should be_true
     end
 
     it "should give a nice failure message for should" do
@@ -82,7 +82,7 @@ describe "an RSpec context" do
         |echo right >&2
       EOS
       @session.run command
-      matcher = @context.receive("right\nright\nright\n", :on => :stderr)
+      matcher = @context.receive("right\nright\nright\n", :on => :standard_error)
       matcher.matches?(@session).should be_false
       matcher.failure_message_for_should.should == <<-EOS.gsub(/^ *\|/, '')
         |On standard error:
@@ -117,7 +117,7 @@ describe "an RSpec context" do
         |echo three >&2
       EOS
       @session.run command
-      matcher = @context.receive("one\ntwo\nthree\n", :on => :stderr)
+      matcher = @context.receive("one\ntwo\nthree\n", :on => :standard_error)
       matcher.matches?(@session).should be_true
       matcher.failure_message_for_should_not.should == <<-EOS.gsub(/^ *\|/, '')
         |Unexpected on standard error:
@@ -141,16 +141,16 @@ describe "an RSpec context" do
       @context.receive_no_more_output.matches?(@session).should be_false
     end
 
-    it "should use standard error if the :on option is set to :stderr" do
+    it "should use standard error if the :on option is set to :standard_error" do
       command = make_shell_command('echo x; sleep 0.2')
       @session.run command
-      @context.receive_no_more_output(:on => :stderr).matches?(@session).should be_true
+      @context.receive_no_more_output(:on => :standard_error).matches?(@session).should be_true
     end
 
-    it "should use standard output if the :on option is set to :stdout" do
+    it "should use standard output if the :on option is set to :standard_output" do
       command = make_shell_command('echo x >&2; sleep 0.2')
       @session.run command
-      @context.receive_no_more_output(:on => :stdout).matches?(@session).should be_true
+      @context.receive_no_more_output(:on => :standard_output).matches?(@session).should be_true
     end
 
     it "should give a nice failure message for should" do
@@ -164,7 +164,7 @@ describe "an RSpec context" do
     it "should give a nice failure message for should when standard error is selected" do
       command = make_shell_command('echo >&2')
       @session.run command
-      matcher = @context.receive_no_more_output(:on => :stderr)
+      matcher = @context.receive_no_more_output(:on => :standard_error)
       matcher.matches?(@session).should be_false
       matcher.failure_message_for_should.should == "unexpected data on standard error"
     end
@@ -180,7 +180,7 @@ describe "an RSpec context" do
     it "should give a nice failure message for should not when standard error is selected" do
       command = make_shell_command('')
       @session.run command
-      matcher = @context.receive_no_more_output(:on => :stderr)
+      matcher = @context.receive_no_more_output(:on => :standard_error)
       matcher.matches?(@session).should be_true
       matcher.failure_message_for_should_not.should == "data expected on standard error"
     end

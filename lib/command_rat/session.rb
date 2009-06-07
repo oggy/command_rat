@@ -5,8 +5,8 @@ module CommandRat
   # A session to run commands under.
   #
   #     app = CommandRat::Session.run(%Q[ruby -e 'puts "hi"; STDERR.puts "eek!"'])
-  #     assert app.receive?('hi', :on => :stdout)
-  #     assert app.receive?('eek!', :on => :stderr)
+  #     assert app.receive?('hi', :on => :standard_output)
+  #     assert app.receive?('eek!', :on => :standard_error)
   #     assert app.exit_status == 0
   #
   class Session
@@ -36,8 +36,8 @@ module CommandRat
         @status = nil
         words = Shellwords.shellwords(command)
         @pid, @stdin, stdout, stderr = Open4.popen4(*words)
-        @stdout = Stream.new(self, 'standard output', stdout)
-        @stderr = Stream.new(self, 'standard error' , stderr)
+        @standard_output = Stream.new(self, 'standard output', stdout)
+        @standard_error = Stream.new(self, 'standard error' , stderr)
         self
       ensure
         teardown_environment
@@ -60,8 +60,8 @@ module CommandRat
 
       # TODO: handle case where command doesn't exit.
       start = Time.now
-      @stdout.read_until_eof(timeout)
-      @stderr.read_until_eof(timeout - (Time.now - start))
+      @standard_output.read_until_eof(timeout)
+      @standard_error.read_until_eof(timeout - (Time.now - start))
       pid, @status = Process::waitpid2(@pid)
       @pid = nil
     end
@@ -90,12 +90,12 @@ module CommandRat
     #
     # The standard output (as a CommandRat::Stream).
     #
-    attr_reader :stdout
+    attr_reader :standard_output
 
     #
     # The standard error (as a CommandRat::Stream).
     #
-    attr_reader :stderr
+    attr_reader :standard_error
 
     #
     # Send the given string on standard input.
@@ -133,8 +133,8 @@ module CommandRat
     # Return true if the given +string+ follows on standard output.
     # If it does, consume it too.
     #
-    # An :on option may be set to :stdout or :stderr to specify the
-    # stream.  Default is :stdout.
+    # An :on option may be set to :standard_output or :standard_error
+    # to specify the stream.  Default is :standard_output.
     #
     # Blocks until enough data is available, or EOF is encountered.
     #
@@ -145,8 +145,8 @@ module CommandRat
     #
     # Return true if there is no more data on standard output.
     #
-    # An :on option may be set to :stdout or :stderr to specify the
-    # stream.  Default is :stdout.
+    # An :on option may be set to :standard_output or :standard_error
+    # to specify the stream.  Default is :standard_output.
     #
     # Blocks until enough data is available.
     #
@@ -158,8 +158,8 @@ module CommandRat
     # Return everything currently available after the cursor on
     # standard output.
     #
-    # An :on option may be set to :stdout or :stderr to specify the
-    # stream.  Default is :stdout.
+    # An :on option may be set to :standard_output or :standard_error
+    # to specify the stream.  Default is :standard_output.
     #
     def peek(options={})
       stream(options[:on]).peek
@@ -167,8 +167,8 @@ module CommandRat
 
     def inspect
       string = "#{self.class} running: #{command}\n"
-      string << @stdout.inspect.gsub(/^/, '  ')
-      string << @stderr.inspect.gsub(/^/, '  ')
+      string << @standard_output.inspect.gsub(/^/, '  ')
+      string << @standard_error.inspect.gsub(/^/, '  ')
     end
 
     private  # -------------------------------------------------------
@@ -186,12 +186,12 @@ module CommandRat
 
     def stream(name)
       case name
-      when nil, :stdout
-        @stdout
-      when :stderr
-        @stderr
+      when nil, :standard_output
+        @standard_output
+      when :standard_error
+        @standard_error
       else
-        raise ArgumentError, "invalid stream: #{name} (need :stdout or :stderr)"
+        raise ArgumentError, "invalid stream: #{name} (need :standard_output or :standard_error)"
       end
     end
   end

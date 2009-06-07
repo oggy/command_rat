@@ -4,14 +4,15 @@ module CommandRat
       #
       # Matches if the given string appears next in standard output.
       #
-      # An :on option may be set to :stdout or :stderr to specify the
-      # stream.  Default is :stdout.
+      # An :on option may be set to :standard_output or
+      # :standard_error to specify the stream.  Default is
+      # :standard_output.
       #
       #     app = CommandRat::Session.run('echo hi')
       #     app.should receive("hi\n")
       #
       #     app = CommandRat::Session.run('echo hi >&2')
-      #     app.should receive("hi\n", :on => :stderr)
+      #     app.should receive("hi\n", :on => :standard_error)
       #
       def receive(pattern, options={})
         Receive.new(pattern, options)
@@ -20,14 +21,15 @@ module CommandRat
       #
       # Matches if there is no more output on standard output.
       #
-      # An :on option may be set to :stdout or :stderr to specify the
-      # stream.  Default is :stdout.
+      # An :on option may be set to :standard_output or
+      # :standard_error to specify the stream.  Default is
+      # :standard_output.
       #
       #     app = CommandRat::Session.run('myprog')
       #     app.should receive_no_more_output
       #
       #     app = CommandRat::Session.run('myprog')
-      #     app.should receive_no_more_output(:on => :stderr)
+      #     app.should receive_no_more_output(:on => :standard_error)
       #
       def receive_no_more_output(options={})
         ReceiveNoMore.new(options)
@@ -48,7 +50,7 @@ module CommandRat
         protected  # -------------------------------------------------
 
         def stream(options)
-          options[:on] == :stderr ? 'standard error' : 'standard output'
+          options[:on] == :standard_error ? 'standard error' : 'standard output'
         end
       end
 
@@ -69,10 +71,10 @@ module CommandRat
                           :left_body => @string,
                           :right_body => @session.peek(@options))
           message = "On #{stream(@options)}:\n#{diff.to_s.gsub(/^/, '  ')}"
-          # If we didn't print out stderr above, print it here, since
-          # it may contain useful error messages.
-          unless @options[:on] == :stderr
-            message << @session.stderr.inspect
+          # If we didn't print out standard_error above, print it
+          # here, since it may contain useful error messages.
+          unless @options[:on] == :standard_error
+            message << @session.standard_error.inspect
           end
           message
         end
