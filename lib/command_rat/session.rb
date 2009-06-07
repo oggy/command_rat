@@ -37,7 +37,7 @@ module CommandRat
         words = Shellwords.shellwords(command)
         @pid, @stdin, stdout, stderr = Open4.popen4(*words)
         @stdout = Stream.new(self, 'standard output', stdout)
-        @stderr = Stream.new(self, 'standard error',  stderr)
+        @stderr = Stream.new(self, 'standard error' , stderr)
         self
       ensure
         teardown_environment

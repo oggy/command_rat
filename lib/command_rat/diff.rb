@@ -1,17 +1,17 @@
 module CommandRat
   class Diff
     def initialize(params={})
-      @left = side(params[:left_heading], params[:left], params[:left_eof])
-      @right = side(params[:right_heading], params[:right], params[:right_eof])
+      @left = Side.new(params[:left_heading], params[:left_body], params[:left_eof])
+      @right = Side.new(params[:right_heading], params[:right_body], params[:right_eof])
     end
 
     def to_s
-      string = "#{left[:heading].ljust(left[:width])} | #{right[:heading]}\n"
-      (1...num_diff_lines).each do |i|
-        left_line = side_line(left, i)
-        right_line = side_line(right, i)
-        separator = separator_between(left[:lines][i], right[:lines][i])
-        string << "#{left_line.ljust(left[:width])}#{separator}#{right_line}\n"
+      string = "#{left.heading.ljust(left.width)} | #{right.heading}\n"
+      (1...num_lines).each do |i|
+        left_line = left.display_line(i).ljust(left.width)
+        separator = separator_between(left.raw_line(i), right.raw_line(i))
+        right_line = right.display_line(i)
+        string << "#{left_line}#{separator}#{right_line}\n"
       end
       string
     end
@@ -19,42 +19,6 @@ module CommandRat
     private  # -------------------------------------------------------
 
     attr_reader :left, :right
-
-    def side(heading, body, eof)
-      lines = [heading, *body.split(/\n/)]
-      indicators = []
-      if body.length > 0 && body[-1] != ?\n
-        indicators << :'No trailing newline'
-      end
-
-      case eof
-      when nil
-      when true
-        indicators << :'EOF received'
-      when false
-        indicators << :'EOF not yet received'
-      end
-
-      lines << indicators if !indicators.empty?
-
-      {
-        :heading => heading,
-        :lines => lines,
-        :width => lines.map{|line| display_line(line).length}.max,
-      }
-    end
-
-    def side_line(side, n)
-      display_line(side[:lines][n])
-    end
-
-    def display_line(raw_value)
-      if raw_value.is_a?(Array)
-        raw_value.join(', ')
-      else
-        raw_value || ''
-      end
-    end
 
     def separator_between(left, right)
       if left == right
@@ -68,8 +32,50 @@ module CommandRat
       end
     end
 
-    def num_diff_lines
-      [left[:lines].length, right[:lines].length].max
+    def num_lines
+      [left.num_lines, right.num_lines].max
+    end
+
+    class Side
+      def initialize(heading, body, eof)
+        @heading = heading
+        @lines = [heading, *body.split(/\n/)]
+
+        indicators = []
+        if body.length > 0 && body[-1] != ?\n
+          indicators << :'No trailing newline'
+        end
+
+        if eof == true
+          indicators << :'EOF received'
+        elsif eof == false
+          indicators << :'EOF not yet received'
+        end
+        @lines << indicators if !indicators.empty?
+      end
+
+      attr_reader :heading, :lines, :width
+
+      def width
+        @width ||= (0...num_lines).map{|i| display_line(i).length}.max
+      end
+
+      def raw_line(num)
+        @lines[num]
+      end
+
+      def display_line(num)
+        raw = raw_line(num)
+        if raw.is_a?(Array)
+          raw.join(', ')
+        else
+          raw || ''
+        end
+      end
+
+      def num_lines
+        @lines.length
+      end
     end
   end
 end

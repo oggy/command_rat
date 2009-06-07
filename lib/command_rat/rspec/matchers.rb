@@ -66,8 +66,8 @@ module CommandRat
         def failure_message_for_should
           diff = Diff.new(:left_heading => 'Expected:',
                           :right_heading => 'Actual:',
-                          :left => @string,
-                          :right => @session.peek(@options))
+                          :left_body => @string,
+                          :right_body => @session.peek(@options))
           message = "On #{stream(@options)}:\n#{diff.to_s.gsub(/^/, '  ')}"
           # If we didn't print out stderr above, print it here, since
           # it may contain useful error messages.

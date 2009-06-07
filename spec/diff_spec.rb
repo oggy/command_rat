@@ -6,8 +6,8 @@ describe "Diff" do
     it "should show just the headings if both sides are empty" do
       diff = CommandRat::Diff.new(:left_heading => 'Left:',
                                   :right_heading => 'Right:',
-                                  :left => '',
-                                  :right => '')
+                                  :left_body => '',
+                                  :right_body => '')
       diff.to_s.should == "Left: | Right:\n"
     end
 
@@ -17,8 +17,8 @@ describe "Diff" do
     it "should pad correctly if the headings are the longest lines" do
       diff = CommandRat::Diff.new(:left_heading => 'Left:',
                                   :right_heading => 'Right:',
-                                  :left => "xxxxxxxx\n",
-                                  :right => "xxxxxxxx\n")
+                                  :left_body => "xxxxxxxx\n",
+                                  :right_body => "xxxxxxxx\n")
       diff.to_s.should == <<-EOS.gsub(/^ *\|/, '')
         |Left:    | Right:
         |xxxxxxxx | xxxxxxxx
@@ -28,8 +28,8 @@ describe "Diff" do
     it "should indicate lines that differ" do
       diff = CommandRat::Diff.new(:left_heading => 'Left:',
                                   :right_heading => 'Right:',
-                                  :left => "same\ndifferent\nsame\n",
-                                  :right => "same\nnot same\nsame\n")
+                                  :left_body => "same\ndifferent\nsame\n",
+                                  :right_body => "same\nnot same\nsame\n")
       diff.to_s.should == <<-EOS.gsub(/^ *\|/, '')
         |Left:     | Right:
         |same      | same
@@ -41,8 +41,8 @@ describe "Diff" do
     it "should indicate lines that are only on the left" do
       diff = CommandRat::Diff.new(:left_heading => 'Left:',
                                   :right_heading => 'Right:',
-                                  :left => "one\ntwo\nthree\n",
-                                  :right => "one\n")
+                                  :left_body => "one\ntwo\nthree\n",
+                                  :right_body => "one\n")
       diff.to_s.should == <<-EOS.gsub(/^ *\|/, '')
         |Left: | Right:
         |one   | one
@@ -54,8 +54,8 @@ describe "Diff" do
     it "should indicate lines that are only on the right" do
       diff = CommandRat::Diff.new(:left_heading => 'Left:',
                                   :right_heading => 'Right:',
-                                  :left => "one\n",
-                                  :right => "one\ntwo\nthree\n")
+                                  :left_body => "one\n",
+                                  :right_body => "one\ntwo\nthree\n")
       diff.to_s.should == <<-EOS.gsub(/^ *\|/, '')
         |Left: | Right:
         |one   | one
@@ -67,8 +67,8 @@ describe "Diff" do
     it "should show if the left doesn't end in a new line" do
       diff = CommandRat::Diff.new(:left_heading => 'Left:',
                                   :right_heading => 'Right:',
-                                  :left => "one\ntwo",
-                                  :right => "one\ntwo\n")
+                                  :left_body => "one\ntwo",
+                                  :right_body => "one\ntwo\n")
       diff.to_s.should == <<-EOS.gsub(/^ *\|/, '')
         |Left:               | Right:
         |one                 | one
@@ -80,8 +80,8 @@ describe "Diff" do
     it "should show if the right doesn't end in a new line" do
       diff = CommandRat::Diff.new(:left_heading => 'Left:',
                                   :right_heading => 'Right:',
-                                  :left => "one\ntwo\n",
-                                  :right => "one\ntwo")
+                                  :left_body => "one\ntwo\n",
+                                  :right_body => "one\ntwo")
       diff.to_s.should == <<-EOS.gsub(/^ *\|/, '')
         |Left: | Right:
         |one   | one
@@ -93,8 +93,8 @@ describe "Diff" do
     it "should show the EOF indicators if given" do
       diff = CommandRat::Diff.new(:left_heading => 'Left:',
                                   :right_heading => 'Right:',
-                                  :left => "one\ntwo\n",
-                                  :right => "one\ntwo\n",
+                                  :left_body => "one\ntwo\n",
+                                  :right_body => "one\ntwo\n",
                                   :left_eof => true,
                                   :right_eof => false)
       diff.to_s.should == <<-EOS.gsub(/^ *\|/, '')
@@ -108,8 +108,8 @@ describe "Diff" do
     it "should show the EOF indicators even if they're the same on both sides" do
       diff = CommandRat::Diff.new(:left_heading => 'Left:',
                                   :right_heading => 'Right:',
-                                  :left => "one\ntwo\n",
-                                  :right => "one\ntwo\n",
+                                  :left_body => "one\ntwo\n",
+                                  :right_body => "one\ntwo\n",
                                   :left_eof => true,
                                   :right_eof => true)
       diff.to_s.should == <<-EOS.gsub(/^ *\|/, '')
@@ -123,8 +123,8 @@ describe "Diff" do
     it "should comma-separate indicators if both are present" do
       diff = CommandRat::Diff.new(:left_heading => 'Left:',
                                   :right_heading => 'Right:',
-                                  :left => "x",
-                                  :right => '',
+                                  :left_body => "x",
+                                  :right_body => '',
                                   :left_eof => true)
       diff.to_s.should == <<-EOS.gsub(/^ *\|/, '')
         |Left:                             | Right:
