@@ -84,11 +84,11 @@ describe "CommandRat::Session" do
     end
   end
 
-  describe "#input" do
+  describe "#send_input" do
     it "should send the given string on standard input" do
       command = make_shell_command('cat <&0')
       @session.run command
-      @session.input "hi"
+      @session.send_input "hi"
       @session.wait_until_done
       @session.stdout.buffer.should == "hi"
     end
@@ -207,7 +207,7 @@ describe "CommandRat::Session" do
       it "should recognize LF, CR, CRLF, and EOF as line terminators" do
         command = make_shell_command('cat <&0')
         @session.run command
-        @session.input "one\ntwo\rthree\r\nfour"
+        @session.send_input "one\ntwo\rthree\r\nfour"
         @session.close_input
         @session.stdout.next_line.should == 'one'
         @session.stdout.next_line.should == 'two'

@@ -100,7 +100,7 @@ module CommandRat
     #
     # Send the given string on standard input.
     #
-    def input(string)
+    def send_input(string)
       @stdin.print string
     end
 
