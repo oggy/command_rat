@@ -4,23 +4,14 @@ module CommandRat
   #
   # A session to run commands under.
   #
-  #     app = CommandRat::Session.run(%Q[ruby -e 'puts "hi"; STDERR.puts "eek!"'])
-  #     assert app.receive?('hi', :on => :standard_output)
-  #     assert app.receive?('eek!', :on => :standard_error)
-  #     assert app.exit_status == 0
+  #     app = CommandRat::Session.run(%Q[ruby -e 'puts "hi"'])
+  #     app.standard_output == "hi\n"
+  #     app.exit_status == 0
   #
   class Session
     def initialize
-      self.timeout = 2
+      @timeout = 2
       @env = ENV.to_hash
-    end
-
-    #
-    # Create a Session, and run the given command with it.  Return the
-    # Session.
-    #
-    def self.run(command, &block)
-      new.run(*args, &block)
     end
 
     #
@@ -45,7 +36,7 @@ module CommandRat
     end
 
     #
-    # True if the process is running, false otherwise.
+    # True if a command is running, false otherwise.
     #
     def running?
       !!@pid
@@ -56,7 +47,7 @@ module CommandRat
     #
     def wait_until_done
       return if !running?
-      close_input
+      send_eof
 
       # TODO: handle case where command doesn't exit.
       start = Time.now
@@ -79,21 +70,21 @@ module CommandRat
     attr_accessor :env
 
     #
-    # The last command run, as an array.
+    # The last command run.
     #
     #     session = CommandRat::Session.new
-    #     session.run 'echo', 'one', 'two'
-    #     session.command  # ['echo', 'one', 'two']
+    #     session.run 'ls -l'
+    #     session.command  # 'ls -l'
     #
     attr_reader :command
 
     #
-    # The standard output (as a CommandRat::Stream).
+    # The standard output (a CommandRat::Stream).
     #
     attr_reader :standard_output
 
     #
-    # The standard error (as a CommandRat::Stream).
+    # The standard error (a CommandRat::Stream).
     #
     attr_reader :standard_error
 
@@ -105,9 +96,9 @@ module CommandRat
     end
 
     #
-    # Close the standard input stream.
+    # Send EOF to the command on standard input.
     #
-    def close_input
+    def send_eof
       @stdin.close unless @stdin.closed?
     end
 
@@ -122,49 +113,21 @@ module CommandRat
     end
 
     #
-    # Send the given string on standard input, appending a record
-    # separator if necessary (like Kernel#puts).
+    # Send the given string on standard input.
+    #
+    # A record separator is appended if necessary (like IO#puts), and
+    # the stream cursors are advanced.
     #
     def enter(line)
+      @standard_output.advance
+      @standard_error.advance
       @stdin.puts line
     end
 
     #
-    # Return true if the given +string+ follows on standard output.
-    # If it does, consume it too.
+    # Return a useful string for debugging.  Don't be afraid to #p out
+    # a Session object.  (Not as painful as it sounds!)
     #
-    # An :on option may be set to :standard_output or :standard_error
-    # to specify the stream.  Default is :standard_output.
-    #
-    # Blocks until enough data is available, or EOF is encountered.
-    #
-    def receive?(string, options={})
-      stream(options[:on]).next?(string)
-    end
-
-    #
-    # Return true if there is no more data on standard output.
-    #
-    # An :on option may be set to :standard_output or :standard_error
-    # to specify the stream.  Default is :standard_output.
-    #
-    # Blocks until enough data is available.
-    #
-    def no_more_output?(options={})
-      stream(options[:on]).eof?
-    end
-
-    #
-    # Return everything currently available after the cursor on
-    # standard output.
-    #
-    # An :on option may be set to :standard_output or :standard_error
-    # to specify the stream.  Default is :standard_output.
-    #
-    def peek(options={})
-      stream(options[:on]).peek
-    end
-
     def inspect
       string = "#{self.class} running: #{command}\n"
       string << @standard_output.inspect.gsub(/^/, '  ')
@@ -183,19 +146,21 @@ module CommandRat
       ENV.replace(@original_environment)
       @original_environment = nil
     end
-
-    def stream(name)
-      case name
-      when nil, :standard_output
-        @standard_output
-      when :standard_error
-        @standard_error
-      else
-        raise ArgumentError, "invalid stream: #{name} (need :standard_output or :standard_error)"
-      end
-    end
   end
 
+  #
+  # Wraps an output stream of the command under test.
+  #
+  # The stream is chunked into "responses."  The #cursor starts at the
+  # beginning, and is moved to the end of the read input each time
+  # #advance is called.  Methods like #== only look at data from the
+  # cursor onwards.
+  #
+  # Normally, the Session advances the stream for you each time a user
+  # action occurs (e.g., when a string is #enter-ed), but if you're
+  # doing something tricky, you might want to #advance the Stream
+  # yourself.
+  #
   class Stream
     def initialize(session, name, stream)
       @session = session
@@ -205,6 +170,11 @@ module CommandRat
       @cursor = 0
       @eof_found = false
     end
+
+    #
+    # The associated session object.
+    #
+    attr_reader :session
 
     #
     # The human-readable name of the stream (e.g., "standard output").
@@ -217,57 +187,52 @@ module CommandRat
     attr_reader :buffer
 
     #
-    # The index of the next character to consume.
+    # The index in the buffer that current response starts from.
     #
     attr_reader :cursor
 
     #
-    # Consume the next +n+ bytes, or as many as possible if EOF is
-    # encountered before then.
+    # Return all data currently available from the cursor onwards.
     #
-    def consume(n)
-      target = @buffer.length + n
-      read_until(@session.timeout) do
-        @buffer.length == target || @eof
-      end
+    # Note that this does not block.  If you want to test the data on
+    # the stream, use #== or #include? instead.
+    #
+    def response
+      buffer_available_data
+      @buffer[@cursor..-1]
     end
 
     #
-    # Consume up to the end of +pattern+ (a String or Regexp).  Block
-    # until the pattern appears, EOF is encountered, or the timeout
-    # elapses.
+    # Return true if the given string appears on the stream after the
+    # cursor.  Wait until the configured timeout if necessary.
     #
-    # If a Regexp pattern is given, return the MatchData object of the
-    # match, otherwise return the string matched.  If EOF is
-    # encountered, return nil.  If the timeout is exceeded, raise
-    # Timeout.
-    #
-    def consume_to(pattern)
-      read_until(@session.timeout) do
-        match = advance_to(pattern) and
-          return match
-      end
+    def include?(string)
+      read_until{response.include?(string)} || false
+    rescue Timeout
+      false
     end
 
     #
-    # Return true if the given string follows, false otherwise.
+    # Return true if the stream contains exactly the given string at
+    # the cursor.  Wait until the configured timeout if necessary.
     #
-    # Block until enough data is available, or EOF is encountered.
+    # TODO: At the moment, this just checks that the output starts
+    # with the given string.  We need to check that there is nothing
+    # between this and the next user action too.
     #
-    def next?(string)
-      read_until(@session.timeout) do
-        @cursor + string.length <= @buffer.length || @eof_found
-      end
-
-      data = @buffer[@cursor, string.length]
-      result = data == string and
-        @cursor += data.length
-      result
+    def ==(string)
+      read_until{@buffer.length >= @cursor + string.length}
+      response == string
+    rescue Timeout
+      false
     end
 
-    # (Private to Session.)  Read the remaining data into the buffer.
-    def read_until_eof(timeout)  #:nodoc:
-      read_until(timeout){@eof_found}
+    #
+    # Move the cursor to the end of the available input.
+    #
+    def advance
+      buffer_available_data
+      @cursor = @buffer.length
     end
 
     #
@@ -283,55 +248,58 @@ module CommandRat
         true
       else
         # We're at the end of the buffer, but haven't got EOF yet.
-        consume(1)
+        read_bytes(1)
         @cursor == @buffer.length && @eof_found
       end
     end
 
     #
-    # Return true if EOF has been found, even if we haven't consumed
-    # all the data yet.
+    # Return true if EOF has been found, even if we haven't advanced
+    # to the end yet.
     #
     def eof_found?
       @eof_found
     end
 
-    #
-    # Return everything currently available after the cursor.
-    #
-    def peek
-      buffer_available_data
-      @buffer[@cursor..-1]
-    end
-
-    #
-    # Read all available data into the buffer.
-    #
-    def buffer_available_data
-      read_until(0)
-    rescue Timeout
-    end
-
     def inspect
       buffer_available_data
       string = "Received on #{name}:\n"
-      string << buffer.gsub(/^/, '  ')
+      string << response.gsub(/^/, '  ')
       string << "\n" unless string[-1] == ?\n
       newline_indicator = buffer[-1] == ?\n ? 'Received' : 'No'
       eof_indicator = eof_found? ? 'received' : 'no'
       string << "(#{newline_indicator} trailing newline, #{eof_indicator} EOF.)\n"
     end
 
-    private  # -------------------------------------------------------
-
-    def <<(string)
-      @buffer << string
+    # (Private to Session.)  Read the remaining data into the buffer.
+    def read_until_eof(timeout)  #:nodoc:
+      read_until(timeout){@eof_found}
     end
 
-    def read_until(timeout)
+    private  # -------------------------------------------------------
+
+    def buffer_available_data
+      read_until(0)
+    rescue Timeout
+    end
+
+    #
+    # Read from the stream until either:
+    #
+    #  * The given block returns true, in which case return the value
+    #    yielded by the block.  The block will be called once before
+    #    any data is read, and once after each block of data read.
+    #  * EOF is reached, in which case return nil.
+    #  * The given timeout elapses, in which case raise a Timeout.
+    #
+    def read_until(timeout=@session.timeout)
       start = Time.now
       loop do
-        return if block_given? && yield
+        if block_given?
+          result = yield and
+            return result
+        end
+
         return if @eof_found
 
         # select treats 0 as infinity, so clamp it just above 0
@@ -350,25 +318,9 @@ module CommandRat
       @eof_found = true
     end
 
-    def advance_to(pattern)
-      pattern = pattern.to_s unless pattern.is_a?(Regexp)
-      index = @buffer.index(pattern, @cursor) or
-        return nil
-
-      if pattern.is_a?(Regexp)
-        match = Regexp.last_match
-        @cursor = match.end(0)
-        match
-      else
-        @cursor += pattern.length
-        pattern.dup
-      end
-    end
-
-    def advance_to_end
-      rest = @buffer[@cursor..-1]
-      @cursor = @buffer.length
-      rest
+    def read_bytes(n)
+      target = @buffer.length + n
+      read_until{@buffer.length >= target}
     end
   end
 end

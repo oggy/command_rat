@@ -7,6 +7,7 @@ describe "CommandRat::Session" do
   end
 
   after do
+    @session.timeout = 2  # some specs shorten this
     @session.wait_until_done
   end
 
@@ -84,16 +85,6 @@ describe "CommandRat::Session" do
     end
   end
 
-  describe "#send_input" do
-    it "should send the given string on standard input" do
-      command = make_shell_command('cat <&0')
-      @session.run command
-      @session.send_input "hi"
-      @session.wait_until_done
-      @session.standard_output.buffer.should == "hi"
-    end
-  end
-
   describe "#standard_output" do
     it "should be nil before any commands are run" do
       @session.standard_output.should be_nil
@@ -120,124 +111,13 @@ describe "CommandRat::Session" do
     end
   end
 
-  describe "Stream" do
-    describe "#consume_to" do
-      describe "when a string is given" do
-        it "should return the string if found" do
-          command = make_shell_command('echo hi')
-          @session.run command
-          @session.standard_output.consume_to("hi").should == "hi"
-        end
-
-        it "should return nil if EOF is encountered" do
-          command = make_shell_command('echo hi')
-          @session.run command
-          @session.standard_output.consume_to("bye").should be_nil
-        end
-
-        it "consume up to the end of the given pattern" do
-          command = make_shell_command('echo x; echo x')
-          @session.run command
-          @session.standard_output.consume_to("x\n").should == "x\n"
-          @session.standard_output.consume_to("x\n").should == "x\n"
-          @session.standard_output.consume_to("x\n").should be_nil
-        end
-
-        it "should raise a Timeout if the timeout is exceeded" do
-          command = make_shell_command('sleep 0.2; echo hi')
-
-          # sanity check
-          @session.run command
-          @session.standard_output.consume_to("hi").should == "hi"
-          @session.wait_until_done
-
-          @session.timeout = 0.1
-          @session.run command
-          lambda{@session.standard_output.consume_to("hi")}.should raise_error(CommandRat::Timeout)
-          @session.timeout = 0.2  # make sure we clean up properly
-        end
-      end
-
-      describe "when a regexp is given" do
-        it "should consume the output up to the end of the matched pattern" do
-          command = make_shell_command('echo a.')
-          @session.run command
-          @session.standard_output.consume_to(/./)[0].should == 'a'
-          @session.standard_output.consume_to(/./)[0].should == '.'
-        end
-
-        it "should return the match data" do
-          command = make_shell_command('echo hi')
-          @session.run command
-          match = @session.standard_output.consume_to(/hi/)
-          match.should be_a(MatchData)
-          match.to_a.should == ['hi']
-        end
-
-        it "should return nil if EOF is encountered" do
-          command = make_shell_command('echo hi')
-          @session.run command
-          @session.standard_output.consume_to(/bye/).should be_nil
-        end
-
-        it "should raise a Timeout if the timeout is exceeded" do
-          command = make_shell_command('sleep 0.2; echo hi')
-
-          # sanity check
-          @session.run command
-          @session.standard_output.consume_to(/hi/)[0].should == "hi"
-          @session.wait_until_done
-
-          @session.timeout = 0.1
-          @session.run command
-          lambda{@session.standard_output.consume_to(/hi/)}.should raise_error(CommandRat::Timeout)
-          @session.timeout = 0.2  # make sure we clean up properly
-        end
-      end
-    end
-
-    describe "#eof?" do
-      it "should return true if EOF has been encountered" do
-        command = make_shell_command('')
-        @session.run command
-        @session.wait_until_done
-        @session.standard_output.eof?.should be_true
-      end
-
-      it "should return false if there is more buffered data" do
-        command = make_shell_command('echo x')
-        @session.run command
-        @session.standard_output.eof?.should be_false
-      end
-
-      it "should return true if the end of the buffer has been reached, and the EOF comes in soon" do
-        command = make_shell_command('sleep 0.1')
-        @session.run command
-        @session.standard_output.eof?.should be_true
-      end
-
-      it "should return true if the end of the buffer has been reached, and more data comes in later" do
-        command = make_shell_command('sleep 0.1; echo x')
-        @session.run command
-        @session.standard_output.eof?.should be_false
-      end
-    end
-
-    describe "#peek" do
-      it "should return everything available on the stream" do
-        command = make_shell_command('echo 1234; sleep 0.4; echo 5678')
-        @session.run command
-        sleep 0.2
-        @session.standard_output.peek.should == "1234\n"
-      end
-
-      it "should not consume anything" do
-        command = make_shell_command('echo 1234')
-        @session.run command
-        @session.wait_until_done
-        @session.peek
-        @session.standard_output.peek.should == "1234\n"
-      end
+  describe "#send_input" do
+    it "should send the given string on standard input" do
+      command = make_shell_command('cat <&0')
+      @session.run command
+      @session.send_input "hi"
+      @session.wait_until_done
+      @session.standard_output.buffer.should == "hi"
     end
   end
 
@@ -266,95 +146,15 @@ describe "CommandRat::Session" do
       @session.wait_until_done
       @session.standard_output.buffer.should == "hi#$/"
     end
-  end
 
-  describe "#receive?" do
-    it "should return true if the given string follows on standard output" do
-      command = make_shell_command('echo x >&2; echo one; echo two; echo three')
+    it "should advance the cursor" do
+      command = make_shell_command('echo one; echo one! >&2; read x; echo two; echo two! >&2')
       @session.run command
-      @session.receive?("one\n").should be_true
-      @session.receive?("two\nthree\n").should be_true
-    end
-
-    it "should return false if the given string does not follow on standard output" do
-      command = make_shell_command('echo one; echo x >&2')
-      @session.run command
-      @session.receive?("one\ntwo/").should be_false
-    end
-
-    it "should not consume anything if it returns false" do
-      command = make_shell_command('echo one; echo x')
-      @session.run command
-      @session.receive?("one\ntwo\n").should be_false  # sanity check
-      @session.receive?("one\n").should be_true
-    end
-
-    it "should use standard error if the :on option is set to :standard_error" do
-      command = make_shell_command('echo x; echo one >&2; echo two >&2; echo three >&2')
-      @session.run command
-      @session.receive?("one\n", :on => :standard_error).should be_true
-      @session.receive?("two\nthree\n", :on => :standard_error).should be_true
-    end
-
-    it "should use standard output if the :on option is set to :standard_output" do
-      command = make_shell_command('echo x >&2; echo one; echo two; echo three')
-      @session.run command
-      @session.receive?("one\n", :on => :standard_output).should be_true
-      @session.receive?("two\nthree\n", :on => :standard_output).should be_true
-    end
-
-    it "should raise an ArgumentError if the :on option is set to something else" do
-      command = make_shell_command('')
-      @session.run command
-      lambda{@session.receive?('', :on => :bad_stream)}.should raise_error(ArgumentError)
-    end
-  end
-
-  describe "#no_more_output?" do
-    it "should return true if there is no more data on standard output" do
-      command = make_shell_command('echo x >&2')
-      @session.run command
-      @session.no_more_output?.should be_true
-    end
-
-    it "should return false if there is more data on standard output" do
-      command = make_shell_command('echo x')
-      @session.run command
-      @session.no_more_output?.should be_false
-    end
-
-    it "should use standard error if the :on option is set to :standard_error" do
-      command = make_shell_command('echo x')
-      @session.run command
-      @session.no_more_output?(:on => :standard_error).should be_true
-    end
-
-    it "should use standard output if the :on option is set to :standard_output" do
-      command = make_shell_command('echo x >&2')
-      @session.run command
-      @session.no_more_output?(:on => :standard_output).should be_true
-    end
-
-    it "should raise an ArgumentError if the :on option is set to something else" do
-      command = make_shell_command('echo x >&2')
-      @session.run command
-      lambda{@session.no_more_output?(:on => :bad_stream)}.should raise_error(ArgumentError)
-    end
-  end
-
-  describe "#peek" do
-    it "should return the available data on standard output" do
-      command = make_shell_command('echo out; echo err >&2')
-      @session.run command
-      @session.wait_until_done
-      @session.peek.should == "out\n"
-    end
-
-    it "should use standard error if the :on option is set to :standard_error" do
-      command = make_shell_command('echo out; echo err >&2')
-      @session.run command
-      @session.wait_until_done
-      @session.peek(:on => :standard_error).should == "err\n"
+      sleep 0.2
+      @session.enter "hi"
+      sleep 0.2
+      @session.standard_output.response.should == "two\n"
+      @session.standard_error.response.should == "two!\n"
     end
   end
 
@@ -399,6 +199,152 @@ describe "CommandRat::Session" do
         |    two
         |  (Received trailing newline, no EOF.)
       EOS
+    end
+  end
+
+  describe "Stream" do
+    describe "#response" do
+      it "should return everything after the cursor so far received" do
+        command = make_shell_command('echo hi')
+        @session.run command
+        @session.wait_until_done
+        @session.standard_output.response.should == "hi\n"
+        @session.standard_output.response.should == "hi\n"
+      end
+    end
+
+    describe "#include?" do
+      it "should return true if the given string appears after the cursor" do
+        command = make_shell_command('echo one')
+        @session.run command
+        @session.wait_until_done
+        @session.standard_output.include?('one').should be_true
+      end
+
+      it "should return false if the given string does not appear at all" do
+        command = make_shell_command('echo one')
+        @session.run command
+        @session.wait_until_done
+        @session.standard_output.include?('two').should be_false
+      end
+
+      it "should return false if the given string only appears before the cursor" do
+        command = make_shell_command('echo one; sleep 0.4; echo two')
+        @session.run command
+        sleep 0.2
+        @session.standard_output.include?('one').should be_true
+        @session.standard_output.advance
+        sleep 0.4
+        @session.standard_output.include?('one').should be_false
+      end
+
+      it "should wait until the configured timeout if necessary" do
+        command = make_shell_command('sleep 0.2; echo one')
+        @session.run command
+        @session.standard_output.include?('one')
+      end
+
+      it "should return false if the configured timeout elapses before the given string appears" do
+        command = make_shell_command('sleep 0.4; echo one')
+        @session.timeout = 0.2
+        @session.run command
+        @session.standard_output.include?('one').should be_false
+      end
+
+      it "should not advance the cursor" do
+        command = make_shell_command('echo one; echo two')
+        @session.run command
+        @session.standard_output.include?('one').should be_true
+        @session.standard_output.include?('one').should be_true
+      end
+    end
+
+    describe "#==" do
+      it "should return true if the given string appears immediately after the cursor" do
+        command = make_shell_command('echo one')
+        @session.run command
+        @session.wait_until_done
+        @session.standard_output.==("one\n").should be_true
+      end
+
+      it "should return false if the given string does not appear immediately after the cursor" do
+        command = make_shell_command('echo xone')
+        @session.run command
+        @session.wait_until_done
+        @session.standard_output.==("one\n").should be_false
+      end
+
+      it "should wait until the configured timeout if necessary" do
+        command = make_shell_command('sleep 0.2; echo one')
+        @session.run command
+        @session.standard_output.==("one\n").should be_true
+      end
+
+      it "should not wait for the timeout if it's not necessary" do
+        command = make_shell_command('echo one; sleep 0.4')
+        @session.run command
+        lambda{timeout(0.2){@session.standard_output.==("one\n")}}.should_not raise_error
+      end
+
+      it "should return false if the configured timeout elapses before the given string appears" do
+        command = make_shell_command('sleep 0.4; echo one')
+        @session.timeout = 0.2
+        @session.run command
+        @session.standard_output.==("one\n").should be_false
+      end
+
+      it "should not advance the cursor" do
+        command = make_shell_command('echo one')
+        @session.run command
+        @session.standard_output.==("one\n").should be_true
+        @session.standard_output.==("one\n").should be_true
+      end
+    end
+
+    describe "#advance" do
+      it "should move the cursor to the end of the buffered data" do
+        command = make_shell_command('echo one; echo two; sleep 0.4; echo three')
+        @session.run command
+        sleep 0.2
+        @session.standard_output.advance
+        sleep 0.4
+        @session.standard_output.response.should == "three\n"
+      end
+    end
+
+    describe "#eof?" do
+      it "should return true if EOF has been encountered" do
+        command = make_shell_command('')
+        @session.run command
+        @session.wait_until_done
+        @session.standard_output.eof?.should be_true
+      end
+
+      it "should return false if there is more data already available" do
+        command = make_shell_command('echo x')
+        @session.run command
+        @session.wait_until_done
+        @session.standard_output.eof?.should be_false
+      end
+
+      it "should return false if there is more data, but it has not come in yet" do
+        command = make_shell_command('sleep 0.1; echo x')
+        @session.run command
+        @session.standard_output.eof?.should be_false
+      end
+
+      it "should return true if we're at the end of the file, but the EOF has not come in yet" do
+        command = make_shell_command('sleep 0.1')
+        @session.run command
+        @session.standard_output.eof?.should be_true
+      end
+
+      it "should raise a Timeout if there is no more data available, but the EOF doesn't come in before the timeout" do
+        command = make_shell_command('sleep 0.4')
+        @session.timeout = 0.2
+        @session.run command
+        lambda{@session.standard_output.eof?}.should raise_error(CommandRat::Timeout)
+      end
     end
   end
 end
