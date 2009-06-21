@@ -228,11 +228,43 @@ module CommandRat
     end
 
     #
+    # Return true if the stream contains the given string immediately
+    # after the cursor, and advance to the end of it.  Wait until the
+    # configured timeout if necessary.
+    #
+    def next?(string)
+      wait_for_chars(string.length)
+      result = @buffer[@cursor, string.length] == string and
+        @cursor += string.length
+      result
+    rescue Timeout
+      false
+    end
+
+    #
     # Move the cursor to the end of the available input.
     #
     def advance
       buffer_available_data
       @cursor = @buffer.length
+    end
+
+    #
+    # Move the cursor forward by +num_chars+ characters.
+    #
+    # Wait until the configured timeout if necessary for +num_chars+
+    # characters to be available on the stream.  If EOF is encountered
+    # before then, raise ArgumentError.  If the timeout elapses, raise
+    # Timeout.
+    #
+    def advance_by(num_chars)
+      wait_for_chars(num_chars)
+      if @buffer.length >= @cursor + num_chars
+        @cursor += num_chars
+      else
+        available_chars = @buffer.length - @cursor
+        raise IndexError, "cannot advance #{num_chars} characters, only #{available_chars} characters left"
+      end
     end
 
     #
@@ -242,15 +274,8 @@ module CommandRat
     # Blocks until EOF is encountered if necessary.
     #
     def eof?
-      if @cursor < @buffer.length
-        false
-      elsif @eof_found
-        true
-      else
-        # We're at the end of the buffer, but haven't got EOF yet.
-        read_bytes(1)
-        @cursor == @buffer.length && @eof_found
-      end
+      wait_for_chars(1)
+      @cursor == @buffer.length && @eof_found
     end
 
     #
@@ -277,11 +302,6 @@ module CommandRat
     end
 
     private  # -------------------------------------------------------
-
-    def buffer_available_data
-      read_until(0)
-    rescue Timeout
-    end
 
     #
     # Read from the stream until either:
@@ -318,9 +338,13 @@ module CommandRat
       @eof_found = true
     end
 
-    def read_bytes(n)
-      target = @buffer.length + n
-      read_until{@buffer.length >= target}
+    def wait_for_chars(n)
+      read_until{@buffer.length >= @cursor + n}
+    end
+
+    def buffer_available_data
+      read_until(0)
+    rescue Timeout
     end
   end
 end

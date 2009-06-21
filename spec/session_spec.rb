@@ -301,6 +301,63 @@ describe "CommandRat::Session" do
       end
     end
 
+    describe "#next?" do
+      it "should return true if the given string appears immediately after the cursor" do
+        command = make_shell_command('echo one; echo two')
+        @session.run command
+        @session.wait_until_done
+        @session.standard_output.next?("one\n").should be_true
+      end
+
+      it "should return false if the given string appears after the cursor, but not immediately after" do
+        command = make_shell_command('echo xone')
+        @session.run command
+        @session.wait_until_done
+        @session.standard_output.next?("one\n").should be_false
+      end
+
+      it "should return false if the given string only appears before the cursor" do
+        command = make_shell_command('echo one')
+        @session.run command
+        @session.wait_until_done
+        @session.standard_output.advance_by 1
+        @session.standard_output.next?("one\n").should be_false
+      end
+
+      it "should wait until the configured timeout if necessary" do
+        command = make_shell_command('sleep 0.2; echo one')
+        @session.run command
+        @session.standard_output.next?("one\n").should be_true
+      end
+
+      it "should not wait for the timeout if it's not necessary" do
+        command = make_shell_command('echo one; sleep 0.4')
+        @session.run command
+        lambda{timeout(0.2){@session.standard_output.next?("one\n")}}.should_not raise_error
+      end
+
+      it "should return false if the configured timeout elapses before the given string appears" do
+        command = make_shell_command('sleep 0.4; echo one')
+        @session.timeout = 0.2
+        @session.run command
+        @session.standard_output.next?("one\n").should be_false
+      end
+
+      it "should advance the cursor if the given string follows" do
+        command = make_shell_command('echo one')
+        @session.run command
+        @session.standard_output.next?("one\n").should be_true
+        @session.standard_output.cursor.should == 4
+      end
+
+      it "should not advance the cursor if the given string follows" do
+        command = make_shell_command('echo one')
+        @session.run command
+        @session.standard_output.next?("x\n").should be_false
+        @session.standard_output.cursor.should == 0
+      end
+    end
+
     describe "#advance" do
       it "should move the cursor to the end of the buffered data" do
         command = make_shell_command('echo one; echo two; sleep 0.4; echo three')
@@ -309,6 +366,37 @@ describe "CommandRat::Session" do
         @session.standard_output.advance
         sleep 0.4
         @session.standard_output.response.should == "three\n"
+      end
+    end
+
+    describe "#advance_by" do
+      it "should move the cursor forward by the given number of characters" do
+        command = make_shell_command('echo ab')
+        @session.run command
+        @session.standard_output.advance_by 1
+        @session.standard_output.cursor.should == 1
+        @session.standard_output.advance_by 1
+        @session.standard_output.cursor.should == 2
+      end
+
+      it "should wait until the given number of characters is available" do
+        command = make_shell_command('sleep 0.2; echo a')
+        @session.run command
+        @session.standard_output.advance_by 2
+        @session.standard_output.buffer.should == "a\n"
+      end
+
+      it "should raise a Timeout if the configured timeout is exceeded" do
+        command = make_shell_command('sleep 0.4; echo a')
+        @session.timeout = 0.2
+        @session.run command
+        lambda{@session.standard_output.advance_by 2}.should raise_error(CommandRat::Timeout)
+      end
+
+      it "should raise IndexError if EOF is received before the given number of characters is encoutered" do
+        command = make_shell_command('')
+        @session.run command
+        lambda{@session.standard_output.advance_by 1}.should raise_error(IndexError)
       end
     end
 
