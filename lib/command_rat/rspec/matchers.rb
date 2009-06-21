@@ -7,12 +7,26 @@ module CommandRat
       end
 
       #
-      # Matches if the given stream contains the given string.
+      # Matches if the stream contains the given string.
       #
       def include_with_command_rat(string, *args)
         matcher = Include.new(string)
         supermatcher = include_without_command_rat(string, *args)
         Delegator.new(CommandRat::Stream, matcher, supermatcher)
+      end
+
+      #
+      # Matches if the stream contains the given string next, and
+      # advances the stream's cursor.
+      #
+      # This lets you check the full output of the command one piece
+      # at a time.
+      #
+      #     session.standard_output.should next_contain("Creating new database.\n")
+      #     session.standard_output.should next_contain("Password: ")
+      #
+      def next_contain(string)
+        NextContain.new(string)
       end
 
       #
@@ -42,6 +56,35 @@ module CommandRat
         def matches?(stream)
           @stream = stream
           stream.include?(@string)
+        end
+
+        def failure_message_for_should
+          diff = Diff.new(:left_heading => 'Expected:',
+                          :right_heading => 'Actual:',
+                          :left_body => @string,
+                          :right_body => @stream.response)
+          message = "On #{@stream.name}:\n#{diff.to_s.gsub(/^/, '  ')}"
+          # If we didn't print out standard_error above, print it
+          # here, since it may contain useful error messages.
+          unless @stream.name == 'standard error'
+            message << @stream.session.standard_error.inspect
+          end
+          message
+        end
+
+        def failure_message_for_should_not
+          "Unexpected on #{@stream.name}:\n#{@string.gsub(/^/, '  ')}"
+        end
+      end
+
+      class NextContain < Matcher
+        def initialize(string)
+          @string = string
+        end
+
+        def matches?(stream)
+          @stream = stream
+          stream.next?(@string)
         end
 
         def failure_message_for_should
