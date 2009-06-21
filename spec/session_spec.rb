@@ -147,14 +147,15 @@ describe "CommandRat::Session" do
       @session.standard_output.buffer.should == "hi#$/"
     end
 
-    it "should advance the cursor" do
-      command = make_shell_command('echo one; echo one! >&2; read x; echo two; echo two! >&2')
+    it "should advance the cursors" do
+      command = make_shell_command('echo a; echo bb >&2; read x')
       @session.run command
       sleep 0.2
+      @session.standard_output.cursor.should == 0
+      @session.standard_error.cursor.should == 0
       @session.enter "hi"
-      sleep 0.2
-      @session.standard_output.response.should == "two\n"
-      @session.standard_error.response.should == "two!\n"
+      @session.standard_output.cursor.should == 2
+      @session.standard_error.cursor.should == 3
     end
   end
 
@@ -205,11 +206,11 @@ describe "CommandRat::Session" do
   describe "Stream" do
     describe "#response" do
       it "should return everything after the cursor so far received" do
-        command = make_shell_command('echo hi')
+        command = make_shell_command('echo ab')
         @session.run command
         @session.wait_until_done
-        @session.standard_output.response.should == "hi\n"
-        @session.standard_output.response.should == "hi\n"
+        @session.standard_output.advance_by 1
+        @session.standard_output.response.should == "b\n"
       end
     end
 
@@ -229,13 +230,11 @@ describe "CommandRat::Session" do
       end
 
       it "should return false if the given string only appears before the cursor" do
-        command = make_shell_command('echo one; sleep 0.4; echo two')
+        command = make_shell_command('echo ab')
         @session.run command
-        sleep 0.2
-        @session.standard_output.include?('one').should be_true
-        @session.standard_output.advance
-        sleep 0.4
-        @session.standard_output.include?('one').should be_false
+        @session.standard_output.include?('a').should be_true
+        @session.standard_output.advance_by 1
+        @session.standard_output.include?('a').should be_false
       end
 
       it "should wait until the configured timeout if necessary" do
@@ -252,26 +251,36 @@ describe "CommandRat::Session" do
       end
 
       it "should not advance the cursor" do
-        command = make_shell_command('echo one; echo two')
+        command = make_shell_command('echo a; echo b')
         @session.run command
-        @session.standard_output.include?('one').should be_true
-        @session.standard_output.include?('one').should be_true
+        @session.standard_output.include?('a').should be_true
+        @session.standard_output.cursor.should == 0
       end
     end
 
     describe "#==" do
       it "should return true if the given string appears immediately after the cursor" do
-        command = make_shell_command('echo one')
+        command = make_shell_command('echo ab')
         @session.run command
         @session.wait_until_done
-        @session.standard_output.==("one\n").should be_true
+        @session.standard_output.advance_by 1
+        @session.standard_output.==("b\n").should be_true
       end
 
-      it "should return false if the given string does not appear immediately after the cursor" do
-        command = make_shell_command('echo xone')
+      it "should return false if the given string appears after the cursor, but not immediately after" do
+        command = make_shell_command('echo abc')
         @session.run command
         @session.wait_until_done
-        @session.standard_output.==("one\n").should be_false
+        @session.standard_output.advance_by 1
+        @session.standard_output.==("c\n").should be_false
+      end
+
+      it "should return false if the given string only appears before the cursor" do
+        command = make_shell_command('echo ab')
+        @session.run command
+        @session.wait_until_done
+        @session.standard_output.advance_by 1
+        @session.standard_output.==("ab\n").should be_false
       end
 
       it "should wait until the configured timeout if necessary" do
@@ -297,31 +306,33 @@ describe "CommandRat::Session" do
         command = make_shell_command('echo one')
         @session.run command
         @session.standard_output.==("one\n").should be_true
-        @session.standard_output.==("one\n").should be_true
+        @session.standard_output.cursor.should == 0
       end
     end
 
     describe "#next?" do
       it "should return true if the given string appears immediately after the cursor" do
-        command = make_shell_command('echo one; echo two')
-        @session.run command
-        @session.wait_until_done
-        @session.standard_output.next?("one\n").should be_true
-      end
-
-      it "should return false if the given string appears after the cursor, but not immediately after" do
-        command = make_shell_command('echo xone')
-        @session.run command
-        @session.wait_until_done
-        @session.standard_output.next?("one\n").should be_false
-      end
-
-      it "should return false if the given string only appears before the cursor" do
-        command = make_shell_command('echo one')
+        command = make_shell_command('echo ab')
         @session.run command
         @session.wait_until_done
         @session.standard_output.advance_by 1
-        @session.standard_output.next?("one\n").should be_false
+        @session.standard_output.next?("b\n").should be_true
+      end
+
+      it "should return false if the given string appears after the cursor, but not immediately after" do
+        command = make_shell_command('echo abc')
+        @session.run command
+        @session.wait_until_done
+        @session.standard_output.advance_by 1
+        @session.standard_output.next?("c\n").should be_false
+      end
+
+      it "should return false if the given string only appears before the cursor" do
+        command = make_shell_command('echo ab')
+        @session.run command
+        @session.wait_until_done
+        @session.standard_output.advance_by 1
+        @session.standard_output.next?("ab\n").should be_false
       end
 
       it "should wait until the configured timeout if necessary" do
