@@ -29,16 +29,6 @@ module CommandRat
         NextContain.new(string)
       end
 
-      #
-      # Matches if the command exited with the given status.
-      #
-      #     app = CommandRat::Session.run('echo')
-      #     app.should exit_with(0)
-      #
-      def exit_with(status)
-        ExitWith.new(status)
-      end
-
       # Abstract Matcher.
       class Matcher  #:nodoc:
         protected  # -------------------------------------------------
@@ -103,25 +93,6 @@ module CommandRat
 
         def failure_message_for_should_not
           "Unexpected on #{@stream.name}:\n#{@string.gsub(/^/, '  ')}"
-        end
-      end
-
-      class ExitWith < Matcher  #:nodoc:
-        def initialize(status)
-          @status = status
-        end
-
-        def matches?(session)
-          @session = session
-          @status.to_i == session.exit_status
-        end
-
-        def failure_message_for_should
-          "command should have exited with status #{@status}, but it exited with #{@session.exit_status}"
-        end
-
-        def failure_message_for_should_not
-          "command should not have exited with status #{@status}"
         end
       end
 

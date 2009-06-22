@@ -318,40 +318,4 @@ describe "an RSpec context" do
       EOS
     end
   end
-
-  describe "#exit_with" do
-    it "should match if the command exited with the given exit status" do
-      command = make_shell_command('exit 17')
-      @session.run command
-      @context.exit_with(17).matches?(@session).should be_true
-    end
-
-    it "should not match if the command exited with the given exit status" do
-      command = make_shell_command('exit 23')
-      @session.run command
-      @context.exit_with(17).matches?(@session).should be_false
-    end
-
-    it "should implicity try to convert the given exit status to an integer" do
-      command = make_shell_command('exit 17')
-      @session.run command
-      @context.exit_with('17').matches?(@session).should be_true
-    end
-
-    it "should give a nice failure message for should" do
-      command = make_shell_command('exit 18')
-      @session.run command
-      matcher = @context.exit_with(17)
-      matcher.matches?(@session).should be_false  # sanity check
-      matcher.failure_message_for_should.should == "command should have exited with status 17, but it exited with 18"
-    end
-
-    it "should give a nice failure message for should not" do
-      command = make_shell_command('exit 17')
-      @session.run command
-      matcher = @context.exit_with(17)
-      matcher.matches?(@session).should be_true  # sanity check
-      matcher.failure_message_for_should_not.should == "command should not have exited with status 17"
-    end
-  end
 end
