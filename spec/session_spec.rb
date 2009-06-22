@@ -1,4 +1,4 @@
-require 'spec_helper'
+require 'spec/spec_helper'
 require 'fileutils'
 
 describe "CommandRat::Session" do

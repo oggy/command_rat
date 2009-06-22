@@ -1,4 +1,4 @@
-require 'spec_helper'
+require 'spec/spec_helper'
 require 'command_rat/rspec/matchers'
 
 describe "an RSpec context" do
