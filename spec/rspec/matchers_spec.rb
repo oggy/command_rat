@@ -1,5 +1,5 @@
 require 'spec/spec_helper'
-require 'command_rat/rspec/matchers'
+require 'command_rat/rspec'
 
 describe "an RSpec context" do
   before do
